@@ -1,0 +1,8 @@
+{
+  "private": true,
+  "workspaces": [
+    "front",
+    "back",
+    "packages/shared"
+  ]
+}
