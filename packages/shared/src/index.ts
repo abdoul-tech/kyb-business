@@ -1,14 +1,24 @@
-import { z } from "zod";
-
-export const extractedField = <T extends z.ZodType>(valueSchema: T) =>
-  z.object({
-    value: valueSchema.nullable(),
-    confidence: z.number().min(0).max(1),
-    source_page: z.number().int().min(1).nullable(),
-  });
-
-export type ExtractedField<T> = {
-  value: T | null;
-  confidence: number;
-  source_page: number | null;
-};
+export { extractedField } from "./schemas/extracted-field.js";
+export type { ExtractedField } from "./schemas/extracted-field.js";
+export { RccmSchema } from "./schemas/rccm.js";
+export type { Rccm } from "./schemas/rccm.js";
+export { IdDocumentSchema } from "./schemas/id-document.js";
+export type { IdDocument } from "./schemas/id-document.js";
+export { StatutsSchema } from "./schemas/statuts.js";
+export type { Statuts } from "./schemas/statuts.js";
+export { OwnershipDocumentSchema } from "./schemas/ownership-document.js";
+export type { OwnershipDocument } from "./schemas/ownership-document.js";
+export { RccmModificatifSchema } from "./schemas/rccm-modificatif.js";
+export type { RccmModificatif } from "./schemas/rccm-modificatif.js";
+export { TaxCertificateSchema } from "./schemas/tax-certificate.js";
+export type { TaxCertificate } from "./schemas/tax-certificate.js";
+export { GoodStandingSchema } from "./schemas/good-standing.js";
+export type { GoodStanding } from "./schemas/good-standing.js";
+export { ProofOfAddressSchema } from "./schemas/proof-of-address.js";
+export type { ProofOfAddress } from "./schemas/proof-of-address.js";
+export { BusinessActivitySchema } from "./schemas/business-activity.js";
+export type { BusinessActivity } from "./schemas/business-activity.js";
+export { LicenseSchema } from "./schemas/license.js";
+export type { License } from "./schemas/license.js";
+export { LogisticsDocumentSchema } from "./schemas/logistics-document.js";
+export type { LogisticsDocument } from "./schemas/logistics-document.js";
