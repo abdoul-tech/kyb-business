@@ -17,10 +17,12 @@
   },
   "dependencies": {
     "@kyb/shared": "0.0.0",
-    "express": "^5.1.0"
+    "express": "^5.1.0",
+    "multer": "^2.4.0"
   },
   "devDependencies": {
     "@types/express": "^5.0.3",
+    "@types/multer": "^2.2.0",
     "@types/node": "^22.15.30",
     "tsx": "^4.20.3",
     "typescript": "^5.8.3"
