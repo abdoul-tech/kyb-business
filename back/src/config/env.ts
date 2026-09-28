@@ -23,21 +23,34 @@ const EnvSchema = z.object({
     }),
 
   OPENAI_API_KEY: z.string().optional(),
+  // live : appels réels ; record : appels réels + enregistrement dans fixtures/llm ; replay : rejoue sans appel réseau.
   LLM_MODE: z.enum(["live", "replay", "record"]).default("live"),
-  LLM_MODEL_CLASSIFY: z.string().optional(),
-  LLM_MODEL_EXTRACT: z.string().optional(),
-  LLM_MODEL_GENERATE: z.string().optional(),
+  // Modèles par défaut : vision + Structured Outputs + temperature supportés. Surchargeables dans back/.env.
+  LLM_MODEL_CLASSIFY: z.string().min(1).default("gpt-4.1-mini"),
+  LLM_MODEL_EXTRACT: z.string().min(1).default("gpt-4.1"),
+  LLM_MODEL_GENERATE: z.string().min(1).default("gpt-4.1"),
+  LLM_FIXTURES_DIR: z.string().optional(),
 
   PDF_RENDER_DPI: z.coerce.number().int().positive().default(200),
   MAX_FILE_BYTES: z.coerce.number().int().positive().default(15 * 1024 * 1024),
   MAX_PAGES: z.coerce.number().int().positive().default(30),
   WEB_ORIGIN: z.url().default("http://localhost:3000"),
+}).superRefine((value, ctx) => {
+  if (value.LLM_MODE !== "replay" && !value.OPENAI_API_KEY) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["OPENAI_API_KEY"],
+      message: `requise en LLM_MODE=${value.LLM_MODE} (utiliser LLM_MODE=replay pour travailler sans clé).`,
+    });
+  }
 });
 
 export type Env = z.infer<typeof EnvSchema>;
 
 function loadEnv(): Env {
-  const result = EnvSchema.safeParse(process.env);
+  // Une variable laissée vide dans .env (`LLM_MODEL_EXTRACT=`) vaut « non renseignée » : la valeur par défaut s'applique.
+  const defined = Object.fromEntries(Object.entries(process.env).filter(([, value]) => value !== ""));
+  const result = EnvSchema.safeParse(defined);
   if (!result.success) {
     // Ne logge que le nom des variables fautives, jamais leur valeur.
     const invalid = result.error.issues.map((issue) => `${issue.path.join(".")}: ${issue.message}`);
