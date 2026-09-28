@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { BridgeSection, DocumentStatus, DocumentTypeSlug, StoredDocument } from "@kyb/shared";
+import type { LlmUsage } from "../llm/client.js";
 import { getDb } from "./client.js";
 
 export type StoredDocumentRecord = {
@@ -19,6 +20,8 @@ export type StoredDocumentRecord = {
   error_code: string | null;
   // Sortie brute de l'extraction (validée Zod). À chiffrer au repos avec l'étape d'extraction.
   extracted_data: unknown;
+  // Tokens, coût et durée de chaque appel LLM fait pour ce document (spec : `llm_usage`).
+  llm_usage: LlmUsage[];
   uploaded_at: Date;
   status_updated_at: Date;
 };
@@ -65,6 +68,7 @@ export async function createStoredDocument(input: {
     status: "uploaded",
     error_code: null,
     extracted_data: null,
+    llm_usage: [],
     uploaded_at: now,
     status_updated_at: now,
   };
@@ -85,7 +89,10 @@ export function isDuplicateKeyError(error: unknown): boolean {
 }
 
 export type DocumentPatch = Partial<
-  Pick<StoredDocumentRecord, "status" | "type" | "type_confidence" | "bridge_sections" | "error_code" | "extracted_data">
+  Pick<
+    StoredDocumentRecord,
+    "status" | "type" | "type_confidence" | "bridge_sections" | "error_code" | "extracted_data" | "llm_usage"
+  >
 >;
 
 // Implémentation Mongo du stockage utilisé par le pipeline (voir documents/pipeline.ts).

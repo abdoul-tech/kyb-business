@@ -16,7 +16,8 @@
     "build": "tsc -p tsconfig.json",
     "test": "vitest run",
     "test:smoke": "tsx smoke-test.ts",
-    "llm:check": "tsx scripts/llm-check.ts"
+    "llm:check": "tsx scripts/llm-check.ts",
+    "llm:record-samples": "tsx scripts/record-samples.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1141.0",

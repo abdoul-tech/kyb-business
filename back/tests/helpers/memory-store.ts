@@ -20,6 +20,7 @@ export function makeRecord(overrides: Partial<StoredDocumentRecord> = {}): Store
     status: "uploaded",
     error_code: null,
     extracted_data: null,
+    llm_usage: [],
     uploaded_at: now,
     status_updated_at: now,
     ...overrides,

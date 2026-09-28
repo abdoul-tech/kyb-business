@@ -1,21 +1,29 @@
+function escapePdfText(line: string): string {
+  return line.replace(/\\/g, "\\\\").replace(/\(/g, "\\(").replace(/\)/g, "\\)");
+}
+
 // Génère un PDF valide minimal de `pages` pages, avec une table xref correcte.
-// `text` permet d'écrire une ligne de texte (Helvetica) sur chaque page.
+// `text` écrit du texte (Helvetica, accents latin-1) sur chaque page ; une ligne par « \n ».
 export function makePdf(pages: number, options: { text?: (pageIndex: number) => string } = {}): Buffer {
   const objects: string[] = [];
   const pageIds = Array.from({ length: pages }, (_, i) => 4 + i * 2);
 
   objects.push("<< /Type /Catalog /Pages 2 0 R >>");
   objects.push(`<< /Type /Pages /Kids [${pageIds.map((id) => `${id} 0 R`).join(" ")}] /Count ${pages} >>`);
-  objects.push("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>");
+  objects.push("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>");
 
   for (let i = 0; i < pages; i++) {
     const contentId = pageIds[i]! + 1;
     objects.push(
       `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R >> >> /Contents ${contentId} 0 R >>`,
     );
-    const line = options.text?.(i) ?? "";
-    const escaped = line.replace(/\\/g, "\\\\").replace(/\(/g, "\\(").replace(/\)/g, "\\)");
-    const stream = line ? `BT /F1 24 Tf 72 760 Td (${escaped}) Tj ET` : "";
+    const lines = (options.text?.(i) ?? "").split("\n").filter((line, index, all) => line || all.length > 1);
+    const single = lines.length === 1;
+    const stream = lines.length
+      ? single
+        ? `BT /F1 24 Tf 72 760 Td (${escapePdfText(lines[0]!)}) Tj ET`
+        : `BT /F1 10 Tf 15 TL 50 790 Td ${lines.map((line) => `(${escapePdfText(line)}) Tj T*`).join(" ")} ET`
+      : "";
     objects.push(`<< /Length ${Buffer.byteLength(stream, "latin1")} >>\nstream\n${stream}\nendstream`);
   }
 

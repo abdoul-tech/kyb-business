@@ -1,3 +1,4 @@
+export { isIsoDate, formatDisplayDate } from "./normalize/dates.js";
 export { extractedField } from "./schemas/extracted-field.js";
 export type { ExtractedField } from "./schemas/extracted-field.js";
 export { RccmSchema } from "./schemas/rccm.js";
@@ -22,8 +23,8 @@ export { LicenseSchema } from "./schemas/license.js";
 export type { License } from "./schemas/license.js";
 export { LogisticsDocumentSchema } from "./schemas/logistics-document.js";
 export type { LogisticsDocument } from "./schemas/logistics-document.js";
-export { DocumentTypeSlugSchema, documentTypeSlugValues } from "./schemas/document-type.js";
-export type { DocumentTypeSlug } from "./schemas/document-type.js";
+export { DocumentTypeSlugSchema, documentTypeSlugValues, documentTypeCatalog } from "./schemas/document-type.js";
+export type { DocumentTypeSlug, DocumentTypeInfo } from "./schemas/document-type.js";
 export { BridgeSectionSchema, bridgeSectionValues } from "./schemas/bridge-section.js";
 export type { BridgeSection } from "./schemas/bridge-section.js";
 export { DocumentStatusSchema, documentStatusValues } from "./schemas/document-status.js";

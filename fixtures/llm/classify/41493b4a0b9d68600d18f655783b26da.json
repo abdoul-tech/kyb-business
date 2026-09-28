@@ -1,0 +1,9 @@
+{
+  "replay_key": "481a078b689f7b1acf73de893d902e2257536d38c77836bc37f9aa4795bfae6d:classify",
+  "purpose": "classify",
+  "model": "gpt-4.1-mini-2025-04-14",
+  "recorded_at": "2026-09-28T15:18:07.797Z",
+  "text": "{\"type\":\"statuts\",\"confidence\":0.99}",
+  "input_tokens": 4022,
+  "output_tokens": 12
+}

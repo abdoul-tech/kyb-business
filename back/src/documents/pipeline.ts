@@ -1,5 +1,6 @@
-import type { DocumentStatus, DocumentTypeSlug } from "@kyb/shared";
+import { documentTypeCatalog, type DocumentStatus, type DocumentTypeSlug } from "@kyb/shared";
 import type { DocumentPatch, StoredDocumentRecord } from "../db/documents.js";
+import type { LlmUsage } from "../llm/client.js";
 
 // Sous ce seuil, ou si le type est `unknown`, le client confirme lui-même le type.
 export const CLASSIFICATION_CONFIDENCE_THRESHOLD = 0.7;
@@ -16,6 +17,12 @@ export type DocumentStore = {
 export type ClassificationResult = {
   type: DocumentTypeSlug;
   confidence: number;
+  usage: LlmUsage[];
+};
+
+export type ExtractionResult = {
+  data: unknown;
+  usage: LlmUsage[];
 };
 
 export type Classifier = (input: { document: StoredDocumentRecord; content: Buffer }) => Promise<ClassificationResult>;
@@ -24,7 +31,7 @@ export type Extractor = (input: {
   document: StoredDocumentRecord;
   content: Buffer;
   type: DocumentTypeSlug;
-}) => Promise<unknown>;
+}) => Promise<ExtractionResult>;
 
 export type PipelineLogger = {
   info(event: string, data: Record<string, unknown>): void;
@@ -40,8 +47,10 @@ export type PipelineDeps = {
 };
 
 // Erreur métier du pipeline, avec un code stable exposé au client dans `error_code`.
+// `usage` conserve le coût des appels LLM déjà faits avant l'échec.
 export class PipelineError extends Error {
   readonly code: string;
+  usage: LlmUsage[] = [];
 
   constructor(code: string, message = code) {
     super(message);
@@ -72,12 +81,14 @@ export async function resumePendingDocuments(
 export async function runDocumentPipeline(documentId: string, deps: PipelineDeps): Promise<void> {
   const { store, logger } = deps;
   let stage: "classifying" | "extracting" = "classifying";
+  let usage: LlmUsage[] = [];
 
   try {
     let document = await store.findById(documentId);
     if (!document || !PENDING_STATUSES.includes(document.status)) {
       return;
     }
+    usage = [...(document.llm_usage ?? [])];
 
     let content: Buffer | null = null;
 
@@ -89,12 +100,14 @@ export async function runDocumentPipeline(documentId: string, deps: PipelineDeps
 
       content = await deps.loadContent(document);
       const result = await deps.classify({ document, content });
+      usage = [...usage, ...result.usage];
 
       if (result.type === "unknown" || result.confidence < CLASSIFICATION_CONFIDENCE_THRESHOLD) {
         await store.transition(documentId, ["classifying"], {
           status: "needs_type_confirmation",
           type: result.type === "unknown" ? null : result.type,
           type_confidence: result.confidence,
+          llm_usage: usage,
         });
         logger.info("document.needs_type_confirmation", { document_id: documentId });
         return;
@@ -104,6 +117,8 @@ export async function runDocumentPipeline(documentId: string, deps: PipelineDeps
         status: "extracting",
         type: result.type,
         type_confidence: result.confidence,
+        bridge_sections: documentTypeCatalog[result.type].bridge_sections,
+        llm_usage: usage,
       });
       if (!document) {
         return;
@@ -116,16 +131,21 @@ export async function runDocumentPipeline(documentId: string, deps: PipelineDeps
     }
 
     content ??= await deps.loadContent(document);
-    const extracted = await deps.extract({ document, content, type: document.type });
+    const extraction = await deps.extract({ document, content, type: document.type });
+    usage = [...usage, ...extraction.usage];
 
     await store.transition(documentId, ["extracting"], {
       status: "extracted",
-      extracted_data: extracted,
+      extracted_data: extraction.data,
       error_code: null,
+      llm_usage: usage,
     });
     logger.info("document.extracted", { document_id: documentId, type: document.type });
   } catch (error) {
     const code = errorCodeOf(error);
+    if (error instanceof PipelineError) {
+      usage = [...usage, ...error.usage];
+    }
     // Uniquement l'id, l'étape et le type d'erreur : le message peut contenir des données du document.
     logger.error("document.failed", {
       document_id: documentId,
@@ -134,7 +154,7 @@ export async function runDocumentPipeline(documentId: string, deps: PipelineDeps
       error_name: (error as Error)?.name ?? "unknown",
     });
     await store
-      .transition(documentId, ["classifying", "extracting"], { status: "failed", error_code: code })
+      .transition(documentId, ["classifying", "extracting"], { status: "failed", error_code: code, llm_usage: usage })
       .catch(() => undefined);
   }
 }

@@ -1,13 +1,16 @@
 // Parcours API de bout en bout sur le Mongo et le MinIO locaux (config de back/.env).
 // Utilise une base et un bucket dédiés, supprimés à la fin : `npm run test:smoke --workspace=back`.
+// LLM en replay : les documents fictifs sont classés et extraits à partir de fixtures/llm, sans appel à OpenAI.
 import assert from "node:assert/strict";
 import { GetObjectCommand, S3Client } from "@aws-sdk/client-s3";
-import { makePdf, PNG_1X1 } from "./tests/helpers/pdf.js";
+import { makePdf } from "./tests/helpers/pdf.js";
+import { passportSample, rccmSample } from "./tests/helpers/samples.js";
 
 process.loadEnvFile(".env");
 process.env.MONGO_URL = "mongodb://localhost:27017/kyb_smoke";
 process.env.S3_BUCKET = "kyb-smoke";
 process.env.PORT = "4123";
+process.env.LLM_MODE = "replay";
 
 const { env } = await import("./src/config/env.js");
 const { connectMongo, closeMongo, getDb } = await import("./src/db/client.js");
@@ -45,10 +48,10 @@ try {
   assert.equal((await fetch(`${base}/${id}`, { headers: { Authorization: "Bearer faux" } })).status, 401);
   step("jeton invalide refusé (401)");
 
-  const pdf = makePdf(2);
+  const pdf = rccmSample.pdf;
   const first = await upload(id, token, [
     { name: "rccm.pdf", content: pdf, type: "application/pdf" },
-    { name: "cni.png", content: PNG_1X1, type: "image/png" },
+    { name: "passeport.pdf", content: passportSample.pdf, type: "application/pdf" },
   ]);
   assert.equal(first.status, 202);
   const { documents } = await first.json();
@@ -56,28 +59,45 @@ try {
   assert.deepEqual(
     documents.map((d: { page_count: number; status: string }) => [d.page_count, d.status]),
     [
-      [2, "uploaded"],
+      [1, "uploaded"],
       [1, "uploaded"],
     ],
   );
-  step("upload PDF + PNG (202, pages comptées)");
+  step("upload RCCM + passeport (202, pages comptées)");
 
-  // Traitement async : sans LLM branché, la classification renvoie `unknown` → le client doit choisir le type.
-  const deadline = Date.now() + 10_000;
-  let statuses: string[] = [];
+  // Traitement async : classification puis extraction (LLM rejoué), suivi par polling comme le front.
+  const deadline = Date.now() + 20_000;
+  let current: { documents: Array<{ status: string; type: string | null; bridge_sections: string[] }> } = {
+    documents: [],
+  };
   while (Date.now() < deadline) {
-    const current = await (await fetch(`${base}/${id}`, { headers: auth })).json();
-    statuses = current.documents.map((d: { status: string }) => d.status);
-    if (statuses.every((status) => status === "needs_type_confirmation")) {
+    current = await (await fetch(`${base}/${id}`, { headers: auth })).json();
+    if (current.documents.every((d) => ["extracted", "failed", "needs_type_confirmation"].includes(d.status))) {
       break;
     }
     await new Promise((resolve) => setTimeout(resolve, 200));
   }
-  assert.deepEqual(statuses, ["needs_type_confirmation", "needs_type_confirmation"]);
-  step("traitement async : uploaded → classifying → needs_type_confirmation");
+  assert.deepEqual(
+    current.documents.map((d) => [d.status, d.type, d.bridge_sections]),
+    [
+      ["extracted", "rccm", ["formation"]],
+      ["extracted", "id_document", ["ubo"]],
+    ],
+  );
+  step("traitement async : uploaded → classifying → extracting → extracted (types et sections Bridge)");
 
   const record = await getDb().collection("documents").findOne({ _id: documents[0].id });
   assert.ok(record);
+  assert.equal(record.extracted_data.rccm_number.value, "NE-NIM-01-2019-B12-00987");
+  assert.equal(record.extracted_data.legal_form_explicit.value, null);
+  assert.deepEqual(
+    record.llm_usage.map((u: { purpose: string; replayed: boolean }) => [u.purpose, u.replayed]),
+    [
+      ["classify", true],
+      ["extract", true],
+    ],
+  );
+  step("champs extraits et consommation LLM enregistrés");
   storedKeys.push(record.storage_key, `applications/${id}/${documents[1].id}`);
   assert.equal(record.storage_key, `applications/${id}/${documents[0].id}`);
 
