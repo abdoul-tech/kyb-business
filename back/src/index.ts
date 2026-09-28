@@ -1,56 +1,37 @@
-import express from "express";
-import multer from "multer";
-import { upload, uploadConfig } from "./storage.js";
+import { env } from "./config/env.js";
+import { connectMongo, closeMongo } from "./db/client.js";
+import { ensureDocumentIndexes } from "./db/documents.js";
+import { resumeDocumentProcessing } from "./documents/processing.js";
+import { ensureBucket } from "./documents/storage.js";
+import { createApp } from "./app.js";
 
-const app = express();
-const port = Number(process.env.PORT) || 4000;
+async function main() {
+  await connectMongo();
+  await ensureDocumentIndexes();
+  await ensureBucket();
 
-app.use(express.json());
+  const app = createApp();
 
-app.get("/health", (_req, res) => {
-  res.json({ status: "ok" });
-});
-
-app.post("/api/documents/upload", upload.array("file", uploadConfig.maxFiles), (req, res) => {
-  const files = (req.files ?? []) as Express.Multer.File[];
-  const caseId = typeof req.body.caseId === "string" && req.body.caseId.trim() ? req.body.caseId.trim() : null;
-
-  res.status(201).json({
-    caseId,
-    documents: files.map((file) => ({
-      id: file.filename,
-      filename: file.originalname,
-      mimeType: file.mimetype,
-      size: file.size,
-      status: "uploaded",
-    })),
+  const server = app.listen(env.PORT, () => {
+    console.log(`back listening on port ${env.PORT}`);
   });
-});
 
-app.use((error: unknown, _req: express.Request, res: express.Response, next: express.NextFunction) => {
-  if (res.headersSent) {
-    next(error);
-    return;
+  const resumed = await resumeDocumentProcessing();
+  if (resumed > 0) {
+    console.log(`${resumed} document(s) en attente relancé(s)`);
   }
 
-  if (error instanceof multer.MulterError) {
-    const status = error.code === "LIMIT_FILE_SIZE" || error.code === "LIMIT_FILE_COUNT" ? 413 : 400;
-    res.status(status).json({ error: error.code, message: "Le fichier ne respecte pas les limites d’upload." });
-    return;
-  }
+  const shutdown = () => {
+    server.close(() => {
+      closeMongo().finally(() => process.exit(0));
+    });
+  };
 
-  if (error instanceof Error && error.message === "Unexpected field") {
-    res.status(400).json({ error: "invalid_file_field", message: "Le champ multipart attendu est file." });
-    return;
-  }
+  process.on("SIGTERM", shutdown);
+  process.on("SIGINT", shutdown);
+}
 
-  res.status(400).json({ error: "invalid_file", message: "Format de fichier non pris en charge." });
+main().catch((error) => {
+  console.error("Échec du démarrage du serveur", error);
+  process.exit(1);
 });
-
-const server = app.listen(port, () => {
-  console.log(`back listening on port ${port}`);
-});
-
-const shutdown = () => server.close(() => process.exit(0));
-process.on("SIGTERM", shutdown);
-process.on("SIGINT", shutdown);

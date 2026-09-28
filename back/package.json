@@ -13,18 +13,27 @@
     "prebuild": "npm run build --workspace=@kyb/shared",
     "start": "node dist/index.js",
     "dev": "tsx watch src/index.ts",
-    "build": "tsc -p tsconfig.json"
+    "build": "tsc -p tsconfig.json",
+    "test": "vitest run",
+    "test:smoke": "tsx smoke-test.ts"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1141.0",
     "@kyb/shared": "0.0.0",
     "express": "^5.1.0",
-    "multer": "^2.4.0"
+    "file-type": "^22.1.1",
+    "mongodb": "^7.6.0",
+    "multer": "^2.4.0",
+    "p-queue": "^9.3.3",
+    "pdfjs-dist": "^6.3.289",
+    "zod": "^4.6.5"
   },
   "devDependencies": {
     "@types/express": "^5.0.3",
     "@types/multer": "^2.2.0",
     "@types/node": "^22.15.30",
     "tsx": "^4.20.3",
-    "typescript": "^5.8.3"
+    "typescript": "^5.8.3",
+    "vitest": "^5.0.2"
   }
 }
