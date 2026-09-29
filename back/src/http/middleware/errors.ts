@@ -1,6 +1,7 @@
 import type { NextFunction, Request, Response } from "express";
 import multer from "multer";
 import { env } from "../../config/env.js";
+import { logger } from "../../logger.js";
 import { ApiError } from "../errors.js";
 import { MAX_FILES_PER_UPLOAD } from "../upload.js";
 
@@ -21,7 +22,7 @@ function fromMulterError(error: multer.MulterError): ApiError {
   }
 }
 
-export function errorHandler(error: unknown, _req: Request, res: Response, next: NextFunction): void {
+export function errorHandler(error: unknown, req: Request, res: Response, next: NextFunction): void {
   if (res.headersSent) {
     next(error);
     return;
@@ -36,6 +37,7 @@ export function errorHandler(error: unknown, _req: Request, res: Response, next:
     return;
   }
 
-  console.error(error);
+  // serializeError retire le message de l'erreur, qui peut contenir une donnée du dossier.
+  logger.error({ event: "http.unhandled_error", path: req.originalUrl.split("?")[0], err: error }, "http.unhandled_error");
   res.status(500).json({ error: { code: "INTERNAL_ERROR", message: "Erreur interne." } });
 }

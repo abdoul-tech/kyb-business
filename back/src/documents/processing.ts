@@ -1,6 +1,8 @@
 import { env } from "../config/env.js";
 import { mongoDocumentStore } from "../db/documents.js";
 import { llm } from "../llm/index.js";
+import { logger } from "../logger.js";
+import { pinoPipelineLogger } from "./pipeline-logger.js";
 import { createClassifier } from "./classifier.js";
 import { createExtractor } from "./extractor.js";
 import { resumePendingDocuments, runDocumentPipeline, type PipelineDeps } from "./pipeline.js";
@@ -13,10 +15,7 @@ const deps: PipelineDeps = {
   loadContent: (document) => getDecryptedObject(document.storage_key),
   classify: createClassifier(llm),
   extract: createExtractor(llm, { dpi: env.PDF_RENDER_DPI }),
-  logger: {
-    info: (event, data) => console.log(JSON.stringify({ level: "info", event, ...data })),
-    error: (event, data) => console.error(JSON.stringify({ level: "error", event, ...data })),
-  },
+  logger: pinoPipelineLogger(logger),
 };
 
 export const documentQueue = createDocumentQueue((documentId) => runDocumentPipeline(documentId, deps));

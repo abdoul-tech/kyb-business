@@ -32,7 +32,7 @@ Projet de self-onboarding KYB : le client charge ses documents, les données son
 - **Statuts** : `uploaded` → `classifying` → `extracting` → `extracted`, ou `needs_type_confirmation` (confiance < 0,7 ou type inconnu), ou `failed` avec un `error_code`. Chaque transition est conditionnelle : un document supprimé ou modifié pendant son traitement n'est jamais écrasé.
 - **Un même document n'est jamais traité deux fois en parallèle** ; s'il est remis en file pendant son traitement, il est relancé juste après.
 - **Reprise au démarrage** : les documents restés en `uploaded`, `classifying` ou `extracting` sont relancés, en reprenant à l'étape où ils s'étaient arrêtés.
-- **Logs** limités à l'id du document, l'étape et le code d'erreur : aucun contenu de document ni message d'erreur (vérifié par un test).
+- **Logs pino** en JSON, limités aux identifiants (`application_id`, `document_id`), types, statuts, codes d'erreur et durées. Une ligne par requête HTTP, sans en-têtes (jeton) ni corps. Les erreurs sont loggées sans leur message, qui peut citer une valeur du document. `redact` masque en plus une liste de champs sensibles (noms, dates de naissance, adresses, numéros, champs extraits, jeton). Critère de la spec vérifié par un test sur la sortie pino (`back/tests/logging.test.ts`). Niveau réglable par `LOG_LEVEL`.
 - **Confirmation du type** : `PATCH /v1/applications/:id/documents/:docId` avec `{ "type": "rccm" }` relance l'extraction avec ce type, sans reclassification (`409 DOCUMENT_PROCESSING` pendant un traitement). Un dossier `submitted` est en lecture seule (`409 APPLICATION_LOCKED`).
 
 ### Classification et extraction par IA (J2)
@@ -152,10 +152,9 @@ Le démarrage local documenté ci-dessus ne nécessite pas Docker. La configurat
 
 ## Prochaines étapes
 
-1. Logs pino avec `redact` et test sur la sortie des logs (critère d'acceptation de la spec).
-2. J3 côté back : modèle de champ du dossier (`Field<T>`, candidats, `edited_by_user`), fusion multi-documents avec les priorités de la spec, rapprochement des UBO, `PATCH /v1/applications/:id` pour l'autosave.
-3. J3 côté front : TanStack Query, routes `/dossier/[id]/...`, écrans vérifier / compléter branchés à l'API.
-4. En parallèle, dès réception : score d'évaluation sur documents réels et ajustement des prompts.
+1. J3 côté back : modèle de champ du dossier (`Field<T>`, candidats, `edited_by_user`), fusion multi-documents avec les priorités de la spec, rapprochement des UBO, `PATCH /v1/applications/:id` pour l'autosave.
+2. J3 côté front : TanStack Query, routes `/dossier/[id]/...`, écrans vérifier / compléter branchés à l'API.
+3. En parallèle, dès réception : score d'évaluation sur documents réels et ajustement des prompts.
 
 ## Usage de l’IA pendant le développement
 
