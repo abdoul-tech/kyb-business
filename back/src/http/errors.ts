@@ -4,6 +4,7 @@ export type ErrorCode =
   | "NOT_FOUND"
   | "APPLICATION_LOCKED"
   | "NOT_READY"
+  | "DOCUMENT_PROCESSING"
   | "UNSUPPORTED_FILE_TYPE"
   | "FILE_TOO_LARGE"
   | "TOO_MANY_PAGES"
@@ -16,6 +17,8 @@ const statusByCode: Record<ErrorCode, number> = {
   NOT_FOUND: 404,
   APPLICATION_LOCKED: 409,
   NOT_READY: 409,
+  // Ajout à la liste de la spec : le document est en cours de classification ou d'extraction.
+  DOCUMENT_PROCESSING: 409,
   UNSUPPORTED_FILE_TYPE: 415,
   FILE_TOO_LARGE: 413,
   TOO_MANY_PAGES: 413,

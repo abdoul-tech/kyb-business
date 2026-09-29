@@ -1,11 +1,19 @@
+import { ConfirmDocumentTypeRequestSchema, documentTypeSlugValues } from "@kyb/shared";
 import { Router } from "express";
 import { createApplication, toPublicApplication } from "../../db/applications.js";
-import { deleteDocument, findDocumentById, findDocumentsByApplication, toPublicDocument } from "../../db/documents.js";
+import {
+  confirmDocumentType,
+  deleteDocument,
+  findDocumentById,
+  findDocumentsByApplication,
+  toPublicDocument,
+  toPublicDocumentDetail,
+} from "../../db/documents.js";
 import { ingestFiles } from "../../documents/ingest.js";
 import { documentQueue } from "../../documents/processing.js";
 import { deleteObject } from "../../documents/storage.js";
 import { MAX_FILES_PER_UPLOAD, upload } from "../upload.js";
-import { requireApplicationAccess } from "../middleware/auth.js";
+import { requireApplicationAccess, requireEditableApplication } from "../middleware/auth.js";
 import { ApiError } from "../errors.js";
 import { requireParam } from "../params.js";
 
@@ -37,6 +45,7 @@ applicationsRouter.get("/:id", requireApplicationAccess, async (req, res, next) 
 applicationsRouter.post(
   "/:id/documents",
   requireApplicationAccess,
+  requireEditableApplication,
   upload.array("file", MAX_FILES_PER_UPLOAD),
   async (req, res, next) => {
     try {
@@ -69,13 +78,48 @@ applicationsRouter.get("/:id/documents/:docId", requireApplicationAccess, async 
       throw new ApiError("NOT_FOUND", "Document introuvable.");
     }
 
-    res.json(toPublicDocument(document));
+    res.json(toPublicDocumentDetail(document));
   } catch (error) {
     next(error);
   }
 });
 
-applicationsRouter.delete("/:id/documents/:docId", requireApplicationAccess, async (req, res, next) => {
+applicationsRouter.patch(
+  "/:id/documents/:docId",
+  requireApplicationAccess,
+  requireEditableApplication,
+  async (req, res, next) => {
+    try {
+      const body = ConfirmDocumentTypeRequestSchema.safeParse(req.body);
+      if (!body.success) {
+        throw new ApiError("VALIDATION_ERROR", "Type de document invalide.", {
+          allowed: documentTypeSlugValues.filter((slug) => slug !== "unknown"),
+        });
+      }
+
+      const applicationId = req.application!._id;
+      const documentId = requireParam(req.params.docId, "docId");
+      if (!(await findDocumentById(applicationId, documentId))) {
+        throw new ApiError("NOT_FOUND", "Document introuvable.");
+      }
+
+      const document = await confirmDocumentType(applicationId, documentId, body.data.type);
+      if (!document) {
+        throw new ApiError(
+          "DOCUMENT_PROCESSING",
+          "Le document est en cours d'analyse : réessayez dans quelques secondes.",
+        );
+      }
+
+      documentQueue.enqueue(document._id);
+      res.status(202).json(toPublicDocument(document));
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+applicationsRouter.delete("/:id/documents/:docId", requireApplicationAccess, requireEditableApplication, async (req, res, next) => {
   try {
     const document = await deleteDocument(req.application!._id, requireParam(req.params.docId, "docId"));
 

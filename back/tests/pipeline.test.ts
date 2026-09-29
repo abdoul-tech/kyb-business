@@ -51,7 +51,12 @@ describe("runDocumentPipeline", () => {
     const doc = await store.findById("doc_1");
     expect(store.history).toEqual(["classifying", "extracting", "extracted"]);
     expect(doc).toMatchObject({ status: "extracted", type: "rccm", type_confidence: 0.95, error_code: null });
-    expect(doc?.extracted_data).toBeTruthy();
+    // Stocké chiffré, relu en clair.
+    expect(doc?.extracted_data_enc).toEqual(expect.any(String));
+    expect(doc?.extracted_data_enc).not.toContain("SAIDOU");
+    expect(store.extractedData("doc_1")).toEqual({
+      legal_name: { value: "SAIDOU AUTO SARL", confidence: 0.9, source_page: 1 },
+    });
     expect(deps.loadContent).toHaveBeenCalledTimes(1);
   });
 

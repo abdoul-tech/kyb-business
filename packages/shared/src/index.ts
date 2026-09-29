@@ -31,7 +31,15 @@ export { DocumentStatusSchema, documentStatusValues } from "./schemas/document-s
 export type { DocumentStatus } from "./schemas/document-status.js";
 export { ApplicationStatusSchema, applicationStatusValues } from "./schemas/application-status.js";
 export type { ApplicationStatus } from "./schemas/application-status.js";
-export { StoredDocumentSchema } from "./schemas/stored-document.js";
-export type { StoredDocument } from "./schemas/stored-document.js";
+export {
+  StoredDocumentSchema,
+  StoredDocumentDetailSchema,
+  ConfirmDocumentTypeRequestSchema,
+} from "./schemas/stored-document.js";
+export type {
+  StoredDocument,
+  StoredDocumentDetail,
+  ConfirmDocumentTypeRequest,
+} from "./schemas/stored-document.js";
 export { ApplicationSchema } from "./schemas/application.js";
 export type { Application } from "./schemas/application.js";

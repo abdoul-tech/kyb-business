@@ -6,10 +6,8 @@ import {
   PutObjectCommand,
   S3Client,
 } from "@aws-sdk/client-s3";
-import { env } from "../config/env.js";
+import { encryptionKey, env } from "../config/env.js";
 import { decrypt, encrypt } from "./encryption.js";
-
-const encryptionKey = Buffer.from(env.FILE_ENCRYPTION_KEY, "base64");
 
 const s3 = new S3Client({
   endpoint: env.S3_ENDPOINT,

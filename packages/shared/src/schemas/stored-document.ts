@@ -20,3 +20,18 @@ export const StoredDocumentSchema = z.object({
 });
 
 export type StoredDocument = z.infer<typeof StoredDocumentSchema>;
+
+// Réponse de GET /applications/{id}/documents/{docId} : statut + champs extraits (null tant que non extrait).
+// La forme de `extracted_data` dépend de `type` (RccmSchema, StatutsSchema, IdDocumentSchema…).
+export const StoredDocumentDetailSchema = StoredDocumentSchema.extend({
+  extracted_data: z.unknown().nullable(),
+});
+
+export type StoredDocumentDetail = z.infer<typeof StoredDocumentDetailSchema>;
+
+// Corps de PATCH /applications/{id}/documents/{docId} : le client confirme ou corrige le type.
+export const ConfirmDocumentTypeRequestSchema = z.strictObject({
+  type: DocumentTypeSlugSchema.exclude(["unknown"]),
+});
+
+export type ConfirmDocumentTypeRequest = z.infer<typeof ConfirmDocumentTypeRequestSchema>;

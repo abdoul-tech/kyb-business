@@ -88,8 +88,17 @@ try {
 
   const record = await getDb().collection("documents").findOne({ _id: documents[0].id });
   assert.ok(record);
-  assert.equal(record.extracted_data.rccm_number.value, "NE-NIM-01-2019-B12-00987");
-  assert.equal(record.extracted_data.legal_form_explicit.value, null);
+  assert.equal(record.extracted_data, undefined);
+  assert.equal(typeof record.extracted_data_enc, "string");
+  const encBytes = Buffer.from(record.extracted_data_enc, "base64");
+  assert.equal(encBytes.includes(Buffer.from("BARRY")), false);
+  assert.equal(encBytes.includes(Buffer.from("rccm_number")), false);
+  step("champs extraits chiffrés en base (aucune valeur en clair)");
+
+  const detail = await (await fetch(`${base}/${id}/documents/${documents[0].id}`, { headers: auth })).json();
+  assert.equal(detail.extracted_data.rccm_number.value, "NE-NIM-01-2019-B12-00987");
+  assert.equal(detail.extracted_data.legal_form_explicit.value, null);
+  step("GET document : champs extraits déchiffrés");
   assert.deepEqual(
     record.llm_usage.map((u: { purpose: string; replayed: boolean }) => [u.purpose, u.replayed]),
     [
@@ -97,7 +106,63 @@ try {
       ["extract", true],
     ],
   );
-  step("champs extraits et consommation LLM enregistrés");
+  step("consommation LLM enregistrée");
+
+  const docs = getDb().collection("documents");
+  const passportId = documents[1].id;
+  const patchType = (docId: string, body: unknown) =>
+    fetch(`${base}/${id}/documents/${docId}`, {
+      method: "PATCH",
+      headers: { ...auth, "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+
+  for (const body of [{ type: "unknown" }, { type: "facture" }, {}]) {
+    const invalid = await patchType(passportId, body);
+    assert.equal(invalid.status, 400);
+    assert.equal((await invalid.json()).error.code, "VALIDATION_ERROR");
+  }
+  step("PATCH type invalide ou `unknown` refusé (400)");
+
+  await docs.updateOne({ _id: passportId }, { $set: { status: "extracting" } });
+  const busy = await patchType(passportId, { type: "id_document" });
+  assert.equal(busy.status, 409);
+  assert.equal((await busy.json()).error.code, "DOCUMENT_PROCESSING");
+  await docs.updateOne({ _id: passportId }, { $set: { status: "extracted" } });
+  step("PATCH pendant le traitement refusé (409 DOCUMENT_PROCESSING)");
+
+  const confirmed = await patchType(passportId, { type: "id_document" });
+  assert.equal(confirmed.status, 202);
+  const confirmedDoc = await confirmed.json();
+  assert.deepEqual(
+    [confirmedDoc.status, confirmedDoc.type, confirmedDoc.type_confirmed_by_user, confirmedDoc.type_confidence],
+    ["extracting", "id_document", true, 1],
+  );
+  let reextracted = confirmedDoc;
+  for (let i = 0; i < 100 && reextracted.status === "extracting"; i++) {
+    await new Promise((resolve) => setTimeout(resolve, 200));
+    reextracted = await (await fetch(`${base}/${id}/documents/${passportId}`, { headers: auth })).json();
+  }
+  assert.equal(reextracted.status, "extracted");
+  assert.equal(reextracted.extracted_data.last_name.value, "SPECIMEN");
+  assert.deepEqual(reextracted.bridge_sections, ["ubo"]);
+  const passportRecord = await docs.findOne({ _id: passportId });
+  assert.deepEqual(
+    passportRecord!.llm_usage.map((u: { purpose: string }) => u.purpose),
+    ["classify", "extract", "extract"],
+  );
+  step("PATCH type confirmé (202) → réextraction sans reclassification → extracted");
+
+  await getDb().collection("applications").updateOne({ _id: id }, { $set: { status: "submitted" } });
+  const lockedPatch = await patchType(passportId, { type: "id_document" });
+  const lockedUpload = await upload(id, token, [{ name: "x.pdf", content: makePdf(1), type: "application/pdf" }]);
+  const lockedDelete = await fetch(`${base}/${id}/documents/${passportId}`, { method: "DELETE", headers: auth });
+  for (const response of [lockedPatch, lockedUpload, lockedDelete]) {
+    assert.equal(response.status, 409);
+    assert.equal((await response.json()).error.code, "APPLICATION_LOCKED");
+  }
+  await getDb().collection("applications").updateOne({ _id: id }, { $set: { status: "draft" } });
+  step("dossier soumis en lecture seule (409 APPLICATION_LOCKED)");
   storedKeys.push(record.storage_key, `applications/${id}/${documents[1].id}`);
   assert.equal(record.storage_key, `applications/${id}/${documents[0].id}`);
 

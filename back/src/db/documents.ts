@@ -1,7 +1,18 @@
 import { randomUUID } from "node:crypto";
-import type { BridgeSection, DocumentStatus, DocumentTypeSlug, StoredDocument } from "@kyb/shared";
+import {
+  documentTypeCatalog,
+  type BridgeSection,
+  type DocumentStatus,
+  type DocumentTypeSlug,
+  type StoredDocument,
+  type StoredDocumentDetail,
+} from "@kyb/shared";
+import { encryptionKey } from "../config/env.js";
 import type { LlmUsage } from "../llm/client.js";
 import { getDb } from "./client.js";
+import { readExtractedData, toStoredPatch, type DocumentPatch } from "./document-patch.js";
+
+export type { DocumentPatch } from "./document-patch.js";
 
 export type StoredDocumentRecord = {
   _id: string;
@@ -18,8 +29,8 @@ export type StoredDocumentRecord = {
   bridge_sections: BridgeSection[];
   status: DocumentStatus;
   error_code: string | null;
-  // Sortie brute de l'extraction (validée Zod). À chiffrer au repos avec l'étape d'extraction.
-  extracted_data: unknown;
+  // Sortie de l'extraction (validée Zod, normalisée), chiffrée AES-256-GCM en base64. Lire via readExtractedData.
+  extracted_data_enc: string | null;
   // Tokens, coût et durée de chaque appel LLM fait pour ce document (spec : `llm_usage`).
   llm_usage: LlmUsage[];
   uploaded_at: Date;
@@ -67,7 +78,7 @@ export async function createStoredDocument(input: {
     bridge_sections: [],
     status: "uploaded",
     error_code: null,
-    extracted_data: null,
+    extracted_data_enc: null,
     llm_usage: [],
     uploaded_at: now,
     status_updated_at: now,
@@ -88,13 +99,6 @@ export function isDuplicateKeyError(error: unknown): boolean {
   return (error as { code?: number }).code === 11000;
 }
 
-export type DocumentPatch = Partial<
-  Pick<
-    StoredDocumentRecord,
-    "status" | "type" | "type_confidence" | "bridge_sections" | "error_code" | "extracted_data" | "llm_usage"
-  >
->;
-
 // Implémentation Mongo du stockage utilisé par le pipeline (voir documents/pipeline.ts).
 export const mongoDocumentStore = {
   findById(id: string): Promise<StoredDocumentRecord | null> {
@@ -110,11 +114,45 @@ export const mongoDocumentStore = {
   transition(id: string, from: DocumentStatus[], patch: DocumentPatch): Promise<StoredDocumentRecord | null> {
     return collection().findOneAndUpdate(
       { _id: id, status: { $in: from } },
-      { $set: { ...patch, status_updated_at: new Date() } },
+      { $set: { ...toStoredPatch(patch, encryptionKey), status_updated_at: new Date() } },
       { returnDocument: "after" },
     );
   },
 };
+
+// Le client confirme ou corrige le type : l'extraction est relancée avec ce type, sans reclassification.
+// Refusé (null) si le document est en cours de traitement, pour ne jamais mélanger deux extractions.
+export async function confirmDocumentType(
+  applicationId: string,
+  documentId: string,
+  type: Exclude<DocumentTypeSlug, "unknown">,
+): Promise<StoredDocumentRecord | null> {
+  return collection().findOneAndUpdate(
+    {
+      _id: documentId,
+      application_id: applicationId,
+      status: { $in: ["needs_type_confirmation", "extracted", "failed"] satisfies DocumentStatus[] },
+    },
+    {
+      $set: {
+        ...toStoredPatch(
+          {
+            status: "extracting",
+            type,
+            type_confidence: 1,
+            type_confirmed_by_user: true,
+            bridge_sections: documentTypeCatalog[type].bridge_sections,
+            error_code: null,
+            extracted_data: null,
+          },
+          encryptionKey,
+        ),
+        status_updated_at: new Date(),
+      },
+    },
+    { returnDocument: "after" },
+  );
+}
 
 export async function findDocumentsByApplication(applicationId: string): Promise<StoredDocumentRecord[]> {
   return collection().find({ application_id: applicationId }).sort({ uploaded_at: 1 }).toArray();
@@ -156,4 +194,9 @@ export function toPublicDocument(doc: StoredDocumentRecord): StoredDocument {
     error_code: doc.error_code,
     uploaded_at: doc.uploaded_at.toISOString(),
   };
+}
+
+// Détail d'un document, avec ses champs extraits déchiffrés (GET /documents/:docId uniquement).
+export function toPublicDocumentDetail(doc: StoredDocumentRecord): StoredDocumentDetail {
+  return { ...toPublicDocument(doc), extracted_data: readExtractedData(doc, encryptionKey) };
 }

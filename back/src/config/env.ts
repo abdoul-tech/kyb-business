@@ -60,3 +60,6 @@ function loadEnv(): Env {
 }
 
 export const env = loadEnv();
+
+// Clé AES-256-GCM des fichiers et des sorties d'extraction.
+export const encryptionKey = Buffer.from(env.FILE_ENCRYPTION_KEY, "base64");

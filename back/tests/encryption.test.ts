@@ -1,6 +1,6 @@
 import { randomBytes } from "node:crypto";
 import { describe, expect, it } from "vitest";
-import { decrypt, encrypt } from "../src/documents/encryption.js";
+import { decrypt, decryptJson, encrypt, encryptJson } from "../src/documents/encryption.js";
 
 const key = randomBytes(32);
 
@@ -23,6 +23,14 @@ describe("encryption AES-256-GCM", () => {
     const payload = encrypt(Buffer.from("contenu"), key);
     payload[payload.length - 1]! ^= 0xff;
     expect(() => decrypt(payload, key)).toThrow();
+  });
+
+  it("chiffre une valeur JSON en base64 sans la laisser lisible", () => {
+    const value = { last_name: { value: "DIOP", confidence: 0.9, source_page: 1 } };
+    const payload = encryptJson(value, key);
+
+    expect(Buffer.from(payload, "base64").includes(Buffer.from("DIOP"))).toBe(false);
+    expect(decryptJson(payload, key)).toEqual(value);
   });
 
   it("refuse une mauvaise clé", () => {

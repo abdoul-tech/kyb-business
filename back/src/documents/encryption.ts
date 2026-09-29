@@ -12,6 +12,15 @@ export function encrypt(plaintext: Buffer, key: Buffer): Buffer {
   return Buffer.concat([iv, cipher.getAuthTag(), ciphertext]);
 }
 
+// Valeur JSON chiffrée, encodée en base64 pour être stockée en base (sorties d'extraction).
+export function encryptJson(value: unknown, key: Buffer): string {
+  return encrypt(Buffer.from(JSON.stringify(value), "utf8"), key).toString("base64");
+}
+
+export function decryptJson(payload: string, key: Buffer): unknown {
+  return JSON.parse(decrypt(Buffer.from(payload, "base64"), key).toString("utf8"));
+}
+
 export function decrypt(payload: Buffer, key: Buffer): Buffer {
   if (payload.length < IV_LENGTH + TAG_LENGTH) {
     throw new Error("Contenu chiffré tronqué.");

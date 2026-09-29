@@ -9,6 +9,15 @@ declare module "express-serve-static-core" {
   }
 }
 
+// Spec : un dossier `submitted` est en lecture seule. À placer après requireApplicationAccess.
+export function requireEditableApplication(req: Request, _res: Response, next: NextFunction): void {
+  if (req.application?.status === "submitted") {
+    next(new ApiError("APPLICATION_LOCKED", "Le dossier a été soumis : il ne peut plus être modifié."));
+    return;
+  }
+  next();
+}
+
 export async function requireApplicationAccess(req: Request, _res: Response, next: NextFunction): Promise<void> {
   try {
     const header = req.header("authorization") ?? "";

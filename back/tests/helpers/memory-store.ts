@@ -1,5 +1,7 @@
+import { randomBytes } from "node:crypto";
 import type { DocumentStatus } from "@kyb/shared";
-import type { DocumentPatch, StoredDocumentRecord } from "../../src/db/documents.js";
+import { readExtractedData, toStoredPatch, type DocumentPatch } from "../../src/db/document-patch.js";
+import type { StoredDocumentRecord } from "../../src/db/documents.js";
 import type { DocumentStore } from "../../src/documents/pipeline.js";
 
 export function makeRecord(overrides: Partial<StoredDocumentRecord> = {}): StoredDocumentRecord {
@@ -19,7 +21,7 @@ export function makeRecord(overrides: Partial<StoredDocumentRecord> = {}): Store
     bridge_sections: [],
     status: "uploaded",
     error_code: null,
-    extracted_data: null,
+    extracted_data_enc: null,
     llm_usage: [],
     uploaded_at: now,
     status_updated_at: now,
@@ -27,8 +29,9 @@ export function makeRecord(overrides: Partial<StoredDocumentRecord> = {}): Store
   };
 }
 
-// Stockage en mémoire, même sémantique que mongoDocumentStore (transitions conditionnelles).
+// Stockage en mémoire, même sémantique que mongoDocumentStore (transitions conditionnelles, extraction chiffrée).
 export class MemoryDocumentStore implements DocumentStore {
+  readonly key = randomBytes(32);
   readonly documents = new Map<string, StoredDocumentRecord>();
   readonly history: DocumentStatus[] = [];
 
@@ -51,11 +54,16 @@ export class MemoryDocumentStore implements DocumentStore {
     if (!current || !from.includes(current.status)) {
       return null;
     }
-    const updated = { ...current, ...patch, status_updated_at: new Date() };
+    const updated = { ...current, ...toStoredPatch(patch, this.key), status_updated_at: new Date() };
     this.documents.set(id, updated);
     if (patch.status) {
       this.history.push(patch.status);
     }
     return updated;
+  }
+
+  extractedData(id: string): unknown {
+    const record = this.documents.get(id);
+    return record ? readExtractedData(record, this.key) : null;
   }
 }
