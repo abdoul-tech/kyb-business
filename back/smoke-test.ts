@@ -108,6 +108,66 @@ try {
   );
   step("consommation LLM enregistrée");
 
+  type FieldView = { value: unknown; edited_by_user: boolean; conflict: boolean; source_doc_id: string | null };
+  type View = {
+    business: Record<string, FieldView>;
+    ubos: Array<{ full_name: FieldView; is_control_person: boolean; id_document_id: string | null }>;
+    alerts: unknown[];
+    processing_documents: number;
+  };
+  const view: View = await (await fetch(`${base}/${id}`, { headers: auth })).json();
+  assert.equal(view.processing_documents, 0);
+  assert.equal(view.business.legal_name!.value, "BARRY AUTO SARL");
+  assert.equal(view.business.legal_name!.source_doc_id, documents[0].id);
+  assert.equal(view.business.registration_number!.value, "NE-NIM-01-2019-B12-00987");
+  assert.equal(view.business.country!.value, "NER");
+  // Cas SAIDOU AUTO : pas de mention « Forme juridique » → forme Bridge vide, demandée au client.
+  assert.equal(view.business.entity_type!.value, null);
+  assert.equal(view.business.dao!.value, false);
+  assert.deepEqual(
+    view.ubos.map((u) => [u.full_name.value, u.is_control_person, u.id_document_id !== null]),
+    [
+      ["Ibrahim Moussa BARRY", true, false],
+      ["FATOU AMINATA SPECIMEN", false, true],
+    ],
+  );
+  step("GET dossier : champs fusionnés, forme juridique non déduite du sigle, UBO rapprochés");
+
+  const patchApp = (body: unknown) =>
+    fetch(`${base}/${id}`, {
+      method: "PATCH",
+      headers: { ...auth, "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+
+  const saved = await patchApp({
+    business: { email: "contact@barry.example", phone: "90 00 00 00", legal_name: "BARRY AUTO", website: null },
+  });
+  assert.equal(saved.status, 200);
+  const savedView: View = await saved.json();
+  assert.equal(savedView.business.phone!.value, "+22790000000");
+  assert.deepEqual(
+    [savedView.business.legal_name!.value, savedView.business.legal_name!.edited_by_user],
+    ["BARRY AUTO", true],
+  );
+  assert.deepEqual([savedView.business.website!.value, savedView.business.website!.edited_by_user], [null, true]);
+  const reread: View = await (await fetch(`${base}/${id}`, { headers: auth })).json();
+  assert.equal(reread.business.email!.value, "contact@barry.example");
+  assert.equal(reread.business.legal_name!.value, "BARRY AUTO");
+  step("PATCH dossier (autosave) : saisies enregistrées, téléphone en E.164, extraction non prioritaire");
+
+  const invalidPatch = await patchApp({ business: { email: "pas-un-email", annual_revenue: "beaucoup" } });
+  assert.equal(invalidPatch.status, 400);
+  const invalidBody = await invalidPatch.json();
+  assert.deepEqual(
+    invalidBody.error.details.fields.map((f: { field: string }) => f.field),
+    ["business.email", "business.annual_revenue"],
+  );
+  assert.equal(JSON.stringify(invalidBody).includes("pas-un-email"), false);
+  const invalidPhone = await patchApp({ business: { phone: "123" } });
+  assert.equal(invalidPhone.status, 400);
+  step("PATCH dossier invalide refusé (400, sans renvoyer les valeurs saisies)");
+
   const docs = getDb().collection("documents");
   const passportId = documents[1].id;
   const patchType = (docId: string, body: unknown) =>
@@ -157,7 +217,8 @@ try {
   const lockedPatch = await patchType(passportId, { type: "id_document" });
   const lockedUpload = await upload(id, token, [{ name: "x.pdf", content: makePdf(1), type: "application/pdf" }]);
   const lockedDelete = await fetch(`${base}/${id}/documents/${passportId}`, { method: "DELETE", headers: auth });
-  for (const response of [lockedPatch, lockedUpload, lockedDelete]) {
+  const lockedAutosave = await patchApp({ business: { email: "autre@barry.example" } });
+  for (const response of [lockedPatch, lockedUpload, lockedDelete, lockedAutosave]) {
     assert.equal(response.status, 409);
     assert.equal((await response.json()).error.code, "APPLICATION_LOCKED");
   }

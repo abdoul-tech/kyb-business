@@ -1,4 +1,43 @@
 export { isIsoDate, formatDisplayDate } from "./normalize/dates.js";
+export { foldText, normalizeName, jaroWinkler } from "./normalize/text.js";
+export { mapLegalForm } from "./normalize/legal-form.js";
+export { normalizePhone } from "./normalize/phone.js";
+export {
+  BridgeEntityTypeSchema,
+  bridgeEntityTypeValues,
+  BridgeSourceOfFundsSchema,
+  bridgeSourceOfFundsValues,
+  clientSourceOfFundsValues,
+  BridgeRevenueBandSchema,
+  bridgeRevenueBandValues,
+} from "./schemas/bridge-values.js";
+export type { BridgeEntityType, BridgeSourceOfFunds, BridgeRevenueBand } from "./schemas/bridge-values.js";
+export { field, fieldCandidate, LOW_CONFIDENCE_THRESHOLD } from "./schemas/field.js";
+export type { Field, FieldCandidate } from "./schemas/field.js";
+export {
+  AddressSchema,
+  ShareCapitalSchema,
+  businessFieldSchemas,
+  businessFieldKeys,
+  extractedBusinessFieldKeys,
+  BusinessViewSchema,
+  UboViewSchema,
+  MergeAlertSchema,
+  mergeAlertCodeValues,
+  ApplicationViewSchema,
+  ApplicationPatchSchema,
+} from "./schemas/application-view.js";
+export type {
+  Address,
+  ShareCapital,
+  BusinessFieldKey,
+  BusinessValues,
+  BusinessView,
+  UboView,
+  MergeAlert,
+  ApplicationView,
+  ApplicationPatch,
+} from "./schemas/application-view.js";
 export { extractedField } from "./schemas/extracted-field.js";
 export type { ExtractedField } from "./schemas/extracted-field.js";
 export { RccmSchema } from "./schemas/rccm.js";

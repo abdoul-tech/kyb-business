@@ -51,13 +51,22 @@ Projet de self-onboarding KYB : le client charge ses documents, les données son
 
 Premier score, sur les 3 documents fictifs de `fixtures/fictif-demo` : classification 3/3, champs corrects 41/41, faux positifs 0/8, pour 0,035 USD. Ce score n'est pas représentatif : documents générés, sans scan, tampon ni écriture manuscrite.
 
+### Dossier fusionné et autosave (J3, back)
+
+- **`GET /v1/applications/:id`** renvoie le dossier complet : champs de l'entreprise, personnes (UBO / control persons), alertes et documents. Chaque champ porte sa valeur, sa confiance, son document et sa page source, ses candidats, et deux indicateurs : `edited_by_user` et `conflict`.
+- **Fusion recalculée à chaque lecture** depuis les extractions des documents et les saisies du client, sans copie en clair des données extraites dans le dossier. Supprimer un document retire donc ses valeurs.
+- **Règles de la spec** : priorité de source par champ (ex. dénomination RCCM > statuts > certificat fiscal), puis confiance, puis document le plus récent ; deux documents divergents → confiance plafonnée à 0,5, alerte `field_conflict`, le client tranche ; une saisie du client n'est jamais écrasée.
+- **Forme juridique Bridge** déduite de la mention explicite selon l'Annexe A (SARL → LLC, SA → Corporation…) ; sans mention ni correspondance, elle reste vide et est demandée au client.
+- **Rapprochement des personnes** entre statuts (associés, gérant), RCCM (dirigeants) et pièces d'identité : même personne si les noms normalisés sont assez proches (Jaro-Winkler ≥ 0,92) et que les dates de naissance ne se contredisent pas ; sinon, alerte `ubo_possible_duplicate`. Pourcentage calculé depuis le nombre de parts, UBO à partir de 25 %, control person selon le rôle (gérant, PDG, DG, PCA…).
+- **`PATCH /v1/applications/:id`** (autosave) : valeurs brutes validées avec les schémas partagés (email, URL, listes Bridge de l'Annexe B, dates ISO), téléphone normalisé en E.164, `null` pour vider un champ. Les erreurs listent les champs fautifs sans renvoyer les valeurs saisies.
+
 ## Avancement
 
 | Jalon | État | Reste à faire |
 | --- | --- | --- |
 | J1 | Presque terminé | Validation des schémas et liste des activités réglementées par le DRI ; Docker Compose complet |
 | J2 | Terminé côté code | Score d'évaluation sur des documents réels anonymisés |
-| J3 | Non commencé | Fusion des champs, rapprochement UBO, écrans vérifier / compléter, champs client, autosave |
+| J3 | Back en grande partie fait | Routes `/ubos` (ajout, modification, attestation) ; front : écrans vérifier / compléter, autosave |
 | J4 à J5 | Non commencés | Voir `spec.md` |
 
 Le front n'est pas encore branché à l'API : il affiche un parcours avec des données factices (prévu au J3).
@@ -149,10 +158,11 @@ Le démarrage local documenté ci-dessus ne nécessite pas Docker. La configurat
 - Documents de test réels anonymisés (ou générés de façon réaliste) avec leurs valeurs attendues : sans eux, le critère « 80 % des champs » ne peut pas être mesuré.
 - Les confiances renvoyées par le modèle sont très hautes (0,95 à 0,99) : le seuil « à vérifier » de 0,8 risque de se déclencher rarement. À vérifier sur documents réels (colonne « Err. ≥ 0,8 » de l'éval).
 - Le code d'erreur `DOCUMENT_PROCESSING` (409) a été ajouté à la liste de la spec.
+- **Seuil de rapprochement des personnes** : Jaro-Winkler ≥ 0,92 sur le nom entier (règle de la spec) fusionne des personnes différentes aux noms proches, fréquents en Afrique de l'Ouest (« Awa DIOP » / « Awa DIOUF » : 0,93 ; « Moussa KANE » / « Moussa KONE » : 0,945), sauf si les deux dates de naissance sont connues. À l'inverse, « Paul Wendkouni OUEDRAOGO » / « Paul OUEDRAOGO » (0,917) ne sont pas rapprochés. Une comparaison mot à mot (chaque mot du nom le plus court retrouvé dans l'autre) corrigerait les deux cas.
 
 ## Prochaines étapes
 
-1. J3 côté back : modèle de champ du dossier (`Field<T>`, candidats, `edited_by_user`), fusion multi-documents avec les priorités de la spec, rapprochement des UBO, `PATCH /v1/applications/:id` pour l'autosave.
+1. J3 côté back : routes `/v1/applications/:id/ubos` (ajouter, modifier, retirer une personne ; `attests_ownership`).
 2. J3 côté front : TanStack Query, routes `/dossier/[id]/...`, écrans vérifier / compléter branchés à l'API.
 3. En parallèle, dès réception : score d'évaluation sur documents réels et ajustement des prompts.
 

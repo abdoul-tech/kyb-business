@@ -1,11 +1,17 @@
-import { ConfirmDocumentTypeRequestSchema, documentTypeSlugValues } from "@kyb/shared";
+import {
+  ApplicationPatchSchema,
+  ConfirmDocumentTypeRequestSchema,
+  documentTypeSlugValues,
+  normalizePhone,
+  type ApplicationPatch,
+} from "@kyb/shared";
 import { Router } from "express";
-import { createApplication, toPublicApplication } from "../../db/applications.js";
+import { buildApplicationView } from "../../application/view.js";
+import { createApplication, findApplicationById, saveUserBusinessValues } from "../../db/applications.js";
 import {
   confirmDocumentType,
   deleteDocument,
   findDocumentById,
-  findDocumentsByApplication,
   toPublicDocument,
   toPublicDocumentDetail,
 } from "../../db/documents.js";
@@ -30,13 +36,45 @@ applicationsRouter.post("/", async (_req, res, next) => {
 
 applicationsRouter.get("/:id", requireApplicationAccess, async (req, res, next) => {
   try {
-    const application = req.application!;
-    const documents = await findDocumentsByApplication(application._id);
+    res.json(await buildApplicationView(req.application!));
+  } catch (error) {
+    next(error);
+  }
+});
 
-    res.json({
-      ...toPublicApplication(application),
-      documents: documents.map(toPublicDocument),
-    });
+// Autosave (debounce 800 ms côté front) : valeurs brutes, enveloppées en champs `edited_by_user`.
+applicationsRouter.patch("/:id", requireApplicationAccess, requireEditableApplication, async (req, res, next) => {
+  try {
+    const parsed = ApplicationPatchSchema.safeParse(req.body);
+    if (!parsed.success) {
+      // Chemins et messages seulement : jamais les valeurs saisies.
+      throw new ApiError("VALIDATION_ERROR", "Certains champs sont invalides.", {
+        fields: parsed.error.issues.map((issue) => ({ field: issue.path.join("."), message: issue.message })),
+      });
+    }
+
+    const application = req.application!;
+    const values: NonNullable<ApplicationPatch["business"]> = { ...parsed.data.business };
+
+    // Spec : téléphone en E.164, pays de l'entreprise par défaut.
+    if (typeof values.phone === "string") {
+      const current = await buildApplicationView(application);
+      const country = values.country ?? current.business.country.value;
+      const phone = normalizePhone(values.phone, country);
+      if (!phone) {
+        throw new ApiError("VALIDATION_ERROR", "Certains champs sont invalides.", {
+          fields: [{ field: "business.phone", message: "Numéro de téléphone invalide (format international attendu)." }],
+        });
+      }
+      values.phone = phone;
+    }
+
+    if (Object.keys(values).length > 0) {
+      await saveUserBusinessValues(application._id, values);
+    }
+
+    const updated = await findApplicationById(application._id);
+    res.json(await buildApplicationView(updated!));
   } catch (error) {
     next(error);
   }
