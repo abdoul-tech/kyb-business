@@ -93,8 +93,51 @@ export const UboViewSchema = z.strictObject({
   id_expiry: field(isoDate),
   // Documents dont provient la personne (statuts, RCCM, pièce d'identité).
   source_doc_ids: z.array(z.string()),
+  // Personne ajoutée par le client (absente des documents).
+  added_by_user: z.boolean(),
 });
 export type UboView = z.infer<typeof UboViewSchema>;
+
+// Valeurs d'une personne modifiables par le client (routes /ubos).
+export const uboFieldSchemas = {
+  full_name: text,
+  role: text,
+  ownership_pct: z.number().min(0).max(100),
+  dob: isoDate,
+  nationality: text,
+  address: text,
+} as const;
+export type UboFieldKey = keyof typeof uboFieldSchemas;
+export type UboValues = { [K in UboFieldKey]: z.infer<(typeof uboFieldSchemas)[K]> };
+export const uboFieldKeys = Object.keys(uboFieldSchemas) as UboFieldKey[];
+
+// POST /applications/{id}/ubos : ajout d'une personne absente des documents. Seul le nom est obligatoire.
+export type CreateUboRequest = { full_name: string } & { [K in Exclude<UboFieldKey, "full_name">]?: UboValues[K] | null };
+export const CreateUboRequestSchema: z.ZodType<CreateUboRequest> = z.strictObject({
+  full_name: uboFieldSchemas.full_name,
+  role: uboFieldSchemas.role.nullable().optional(),
+  ownership_pct: uboFieldSchemas.ownership_pct.nullable().optional(),
+  dob: uboFieldSchemas.dob.nullable().optional(),
+  nationality: uboFieldSchemas.nationality.nullable().optional(),
+  address: uboFieldSchemas.address.nullable().optional(),
+}) as z.ZodType<CreateUboRequest>;
+
+// PATCH /applications/{id}/ubos/{uboId} : corrections (null = vider), signataire de l'attestation,
+// pièce d'identité rattachée (document de type id_document du dossier).
+export type UpdateUboRequest = { [K in UboFieldKey]?: UboValues[K] | null } & {
+  attests_ownership?: boolean;
+  id_document_id?: string | null;
+};
+export const UpdateUboRequestSchema: z.ZodType<UpdateUboRequest> = z.strictObject({
+  full_name: uboFieldSchemas.full_name.nullable().optional(),
+  role: uboFieldSchemas.role.nullable().optional(),
+  ownership_pct: uboFieldSchemas.ownership_pct.nullable().optional(),
+  dob: uboFieldSchemas.dob.nullable().optional(),
+  nationality: uboFieldSchemas.nationality.nullable().optional(),
+  address: uboFieldSchemas.address.nullable().optional(),
+  attests_ownership: z.boolean().optional(),
+  id_document_id: z.string().min(1).nullable().optional(),
+}) as z.ZodType<UpdateUboRequest>;
 
 export const mergeAlertCodeValues = ["field_conflict", "ubo_possible_duplicate"] as const;
 

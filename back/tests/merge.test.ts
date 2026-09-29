@@ -263,6 +263,14 @@ describe("rapprochement des UBO", () => {
     expect(alerts.map((a) => a.code)).toContain("ubo_possible_duplicate");
   });
 
+  it("donne des identifiants qui dépendent du sel du dossier, pas seulement du nom", () => {
+    const s = doc("statuts", statuts());
+    const [a] = mergeApplication([s], {}, undefined, "sel-dossier-a").ubos;
+    const [b] = mergeApplication([s], {}, undefined, "sel-dossier-b").ubos;
+    expect(a!.id).not.toBe(b!.id);
+    expect(mergeApplication([s], {}, undefined, "sel-dossier-a").ubos[0]!.id).toBe(a!.id);
+  });
+
   it("donne des identifiants stables quand on ajoute une pièce d'identité", () => {
     const s = doc("statuts", statuts());
     const before = mergeApplication([s]).ubos.map((u) => u.id);

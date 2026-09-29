@@ -26,6 +26,10 @@ export {
   mergeAlertCodeValues,
   ApplicationViewSchema,
   ApplicationPatchSchema,
+  uboFieldSchemas,
+  uboFieldKeys,
+  CreateUboRequestSchema,
+  UpdateUboRequestSchema,
 } from "./schemas/application-view.js";
 export type {
   Address,
@@ -37,6 +41,10 @@ export type {
   MergeAlert,
   ApplicationView,
   ApplicationPatch,
+  UboFieldKey,
+  UboValues,
+  CreateUboRequest,
+  UpdateUboRequest,
 } from "./schemas/application-view.js";
 export { extractedField } from "./schemas/extracted-field.js";
 export type { ExtractedField } from "./schemas/extracted-field.js";

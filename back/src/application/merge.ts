@@ -25,8 +25,10 @@ import {
   type SourcedCandidate,
 } from "./fields.js";
 import { matchUbos, type MergeDocument } from "./ubo-matching.js";
+import { applyUserUbos, EMPTY_USER_UBOS, type UserUbos } from "./user-ubos.js";
 
 export type { MergeDocument } from "./ubo-matching.js";
+export type { UserUbos, UserUboValues } from "./user-ubos.js";
 
 // Valeurs saisies par le client, stockées dans le dossier (jamais écrasées par une extraction).
 export type UserBusinessValues = { [K in BusinessFieldKey]?: { value: BusinessValues[K] | null; edited_at: Date } };
@@ -244,8 +246,14 @@ export function conflictAlerts(business: BusinessFields, ubos: UboView[]): Merge
 }
 
 // Fusion complète : recalculée à chaque lecture depuis les extractions (déchiffrées) et les saisies du client.
-export function mergeApplication(documents: MergeDocument[], user: UserBusinessValues = {}): MergedApplication {
+export function mergeApplication(
+  documents: MergeDocument[],
+  user: UserBusinessValues = {},
+  userUbos: UserUbos = EMPTY_USER_UBOS,
+  uboIdSalt = "",
+): MergedApplication {
   const business = mergeBusiness(documents, user);
-  const { ubos, alerts: uboAlerts } = matchUbos(documents);
+  const detected = matchUbos(documents, uboIdSalt);
+  const { ubos, alerts: uboAlerts } = applyUserUbos(detected.ubos, detected.alerts, userUbos, documents);
   return { business, ubos, alerts: [...conflictAlerts(business, ubos), ...uboAlerts] };
 }

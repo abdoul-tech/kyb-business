@@ -177,8 +177,11 @@ function sameName(a: string, b: string): boolean {
   return jaroWinkler(normalizeName(a), normalizeName(b)) >= NAME_MATCH_THRESHOLD;
 }
 
-function uboId(cluster: Cluster, taken: Set<string>): string {
-  const base = `ubo_${createHash("sha256").update(cluster.mentions[0]!.key).digest("hex").slice(0, 12)}`;
+// L'identifiant apparaît dans les URL et donc dans les logs : un hash du seul nom se retrouverait en hachant des
+// listes de noms courants. Le sel (secret serveur propre au dossier, voir application/view.ts) le rend opaque.
+function uboId(cluster: Cluster, taken: Set<string>, idSalt: string): string {
+  const digest = createHash("sha256").update(`${idSalt}:${cluster.mentions[0]!.key}`).digest("hex");
+  const base = `ubo_${digest.slice(0, 12)}`;
   let id = base;
   for (let n = 2; taken.has(id); n++) {
     id = `${base}_${n}`;
@@ -215,6 +218,7 @@ function toView(cluster: Cluster, id: string): UboView {
       null,
     id_expiry: idExpiry,
     source_doc_ids: [...new Set(cluster.mentions.map((m) => m.doc.id))],
+    added_by_user: false,
   };
 }
 
@@ -223,7 +227,7 @@ function orderOf(doc: SourceDocument): number {
   return index === -1 ? MENTION_ORDER.length : index;
 }
 
-export function matchUbos(documents: MergeDocument[]): { ubos: UboView[]; alerts: MergeAlert[] } {
+export function matchUbos(documents: MergeDocument[], idSalt = ""): { ubos: UboView[]; alerts: MergeAlert[] } {
   const ordered = [...documents].sort(
     (a, b) => orderOf(a) - orderOf(b) || a.uploaded_at.getTime() - b.uploaded_at.getTime() || a.id.localeCompare(b.id),
   );
@@ -260,7 +264,7 @@ export function matchUbos(documents: MergeDocument[]): { ubos: UboView[]; alerts
   const taken = new Set<string>();
   const ids = new Map<Cluster, string>();
   const ubos = clusters.map((cluster) => {
-    const id = uboId(cluster, taken);
+    const id = uboId(cluster, taken, idSalt);
     ids.set(cluster, id);
     return toView(cluster, id);
   });

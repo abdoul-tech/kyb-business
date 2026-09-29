@@ -58,6 +58,7 @@ Premier score, sur les 3 documents fictifs de `fixtures/fictif-demo` : classific
 - **Règles de la spec** : priorité de source par champ (ex. dénomination RCCM > statuts > certificat fiscal), puis confiance, puis document le plus récent ; deux documents divergents → confiance plafonnée à 0,5, alerte `field_conflict`, le client tranche ; une saisie du client n'est jamais écrasée.
 - **Forme juridique Bridge** déduite de la mention explicite selon l'Annexe A (SARL → LLC, SA → Corporation…) ; sans mention ni correspondance, elle reste vide et est demandée au client.
 - **Rapprochement des personnes** entre statuts (associés, gérant), RCCM (dirigeants) et pièces d'identité : même personne si les noms normalisés sont assez proches (Jaro-Winkler ≥ 0,92) et que les dates de naissance ne se contredisent pas ; sinon, alerte `ubo_possible_duplicate`. Pourcentage calculé depuis le nombre de parts, UBO à partir de 25 %, control person selon le rôle (gérant, PDG, DG, PCA…).
+- **Personnes (`/v1/applications/:id/ubos`)** : `POST` ajoute une personne absente des documents ; `PATCH` corrige ses valeurs, rattache sa pièce d'identité (la date d'expiration est lue sur l'extraction) ou la désigne signataire de l'attestation de propriété (une seule personne, obligatoirement de direction) ; `DELETE` supprime une personne ajoutée ou masque une personne détectée. Les corrections du client ne sont jamais écrasées ; les indicateurs UBO et control person sont recalculés sur les valeurs corrigées. Les identifiants de personnes sont opaques (hash salé par un secret serveur), car ils apparaissent dans les URL.
 - **`PATCH /v1/applications/:id`** (autosave) : valeurs brutes validées avec les schémas partagés (email, URL, listes Bridge de l'Annexe B, dates ISO), téléphone normalisé en E.164, `null` pour vider un champ. Les erreurs listent les champs fautifs sans renvoyer les valeurs saisies.
 
 ## Avancement
@@ -66,7 +67,7 @@ Premier score, sur les 3 documents fictifs de `fixtures/fictif-demo` : classific
 | --- | --- | --- |
 | J1 | Presque terminé | Validation des schémas et liste des activités réglementées par le DRI ; Docker Compose complet |
 | J2 | Terminé côté code | Score d'évaluation sur des documents réels anonymisés |
-| J3 | Back en grande partie fait | Routes `/ubos` (ajout, modification, attestation) ; front : écrans vérifier / compléter, autosave |
+| J3 | Back fait | Front : écrans vérifier / compléter, autosave, personnes |
 | J4 à J5 | Non commencés | Voir `spec.md` |
 
 Le front n'est pas encore branché à l'API : il affiche un parcours avec des données factices (prévu au J3).
@@ -162,9 +163,8 @@ Le démarrage local documenté ci-dessus ne nécessite pas Docker. La configurat
 
 ## Prochaines étapes
 
-1. J3 côté back : routes `/v1/applications/:id/ubos` (ajouter, modifier, retirer une personne ; `attests_ownership`).
-2. J3 côté front : TanStack Query, routes `/dossier/[id]/...`, écrans vérifier / compléter branchés à l'API.
-3. En parallèle, dès réception : score d'évaluation sur documents réels et ajustement des prompts.
+1. J3 côté front : TanStack Query, routes `/dossier/[id]/...`, écrans vérifier / compléter branchés à l'API.
+2. En parallèle, dès réception : score d'évaluation sur documents réels et ajustement des prompts.
 
 ## Usage de l’IA pendant le développement
 

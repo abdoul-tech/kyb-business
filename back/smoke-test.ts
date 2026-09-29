@@ -168,6 +168,66 @@ try {
   assert.equal(invalidPhone.status, 400);
   step("PATCH dossier invalide refusé (400, sans renvoyer les valeurs saisies)");
 
+  type UboJson = {
+    id: string;
+    full_name: FieldView;
+    address: FieldView;
+    id_expiry: FieldView;
+    attests_ownership: boolean;
+    added_by_user: boolean;
+    id_document_id: string | null;
+  };
+  const uboCall = (method: string, path: string, body?: unknown) =>
+    fetch(`${base}/${id}/ubos${path}`, {
+      method,
+      headers: { ...auth, "Content-Type": "application/json" },
+      body: body === undefined ? undefined : JSON.stringify(body),
+    });
+  const ubosOf = (v: { ubos: UboJson[] }) => v.ubos;
+
+  const detected = ubosOf(reread as unknown as { ubos: UboJson[] });
+  const barryId = detected.find((u) => u.full_name.value === "Ibrahim Moussa BARRY")!.id;
+  const specimenId = detected.find((u) => u.full_name.value === "FATOU AMINATA SPECIMEN")!.id;
+
+  const added = await uboCall("POST", "", { full_name: "Mariama DIALLO", role: "Directrice générale", ownership_pct: 20 });
+  assert.equal(added.status, 201);
+  const addedBody = await added.json();
+  const manualId: string = addedBody.ubo_id;
+  assert.match(manualId, /^ubo_m_/);
+  const manual = ubosOf(addedBody.application).find((u) => u.id === manualId)!;
+  assert.deepEqual([manual.full_name.value, manual.added_by_user], ["Mariama DIALLO", true]);
+  assert.equal((await uboCall("POST", "", { role: "DG" })).status, 400);
+  step("POST ubos : personne ajoutée à la main (201), nom obligatoire (400)");
+
+  const attest = await uboCall("PATCH", `/${barryId}`, { address: "Quartier Plateau, Niamey", attests_ownership: true });
+  assert.equal(attest.status, 200);
+  const barry = ubosOf(await attest.json()).find((u) => u.id === barryId)!;
+  assert.deepEqual([barry.address.value, barry.address.edited_by_user, barry.attests_ownership], [
+    "Quartier Plateau, Niamey",
+    true,
+    true,
+  ]);
+  const notControl = await uboCall("PATCH", `/${specimenId}`, { attests_ownership: true });
+  assert.equal(notControl.status, 400);
+  assert.equal((await notControl.json()).error.details.fields[0].field, "attests_ownership");
+  step("PATCH ubo : correction et signataire de l'attestation (personne de direction uniquement)");
+
+  const linked = await uboCall("PATCH", `/${manualId}`, { id_document_id: documents[1].id });
+  assert.equal(linked.status, 200);
+  const linkedUbo = ubosOf(await linked.json()).find((u) => u.id === manualId)!;
+  assert.deepEqual([linkedUbo.id_document_id, linkedUbo.id_expiry.value], [documents[1].id, "2032-02-14"]);
+  const wrongDoc = await uboCall("PATCH", `/${manualId}`, { id_document_id: documents[0].id });
+  assert.equal(wrongDoc.status, 400);
+  step("PATCH ubo : pièce d'identité rattachée (expiration lue sur l'extraction), autre type refusé");
+
+  const hidden = await uboCall("DELETE", `/${specimenId}`);
+  assert.equal(hidden.status, 200);
+  const deleted = await uboCall("DELETE", `/${manualId}`);
+  const remaining = ubosOf(await deleted.json()).map((u) => u.id);
+  assert.deepEqual(remaining, [barryId]);
+  assert.equal((await uboCall("PATCH", `/${specimenId}`, { role: "Gérant" })).status, 404);
+  step("DELETE ubo : personne détectée masquée, personne ajoutée supprimée, 404 ensuite");
+
   const docs = getDb().collection("documents");
   const passportId = documents[1].id;
   const patchType = (docId: string, body: unknown) =>
@@ -218,7 +278,8 @@ try {
   const lockedUpload = await upload(id, token, [{ name: "x.pdf", content: makePdf(1), type: "application/pdf" }]);
   const lockedDelete = await fetch(`${base}/${id}/documents/${passportId}`, { method: "DELETE", headers: auth });
   const lockedAutosave = await patchApp({ business: { email: "autre@barry.example" } });
-  for (const response of [lockedPatch, lockedUpload, lockedDelete, lockedAutosave]) {
+  const lockedUbo = await uboCall("POST", "", { full_name: "Nouvelle Personne" });
+  for (const response of [lockedPatch, lockedUpload, lockedDelete, lockedAutosave, lockedUbo]) {
     assert.equal(response.status, 409);
     assert.equal((await response.json()).error.code, "APPLICATION_LOCKED");
   }
