@@ -4,7 +4,7 @@ Projet de self-onboarding KYB : le client charge ses documents, les données son
 
 ## État actuel
 
-> **La suite du J2 est bloquée par l'obtention d'une clé OpenAI.** Le socle de l'API (dossiers, upload, stockage chiffré, file de traitement asynchrone) est terminé et testé. Tout ce qui reste au J2 (rendu PDF, classification, extraction RCCM / statuts / passeport, enregistrement des réponses pour le mode `replay`, `npm run eval`) nécessite une clé `OPENAI_API_KEY`, ainsi qu'un jeu de documents de test anonymisés avec les valeurs attendues. Qui fournit la clé et le budget d'évaluation reste une question ouverte de la spec.
+> **Le J2 est terminé côté code.** Upload, stockage chiffré, file asynchrone, classification et extraction LLM (RCCM, statuts, pièce d'identité) fonctionnent de bout en bout, et `npm run eval` mesure la qualité. **Le premier score (100 %) porte uniquement sur 3 documents fictifs** générés proprement : il valide l'outil, pas la qualité réelle. **Il manque des documents réels anonymisés** (idéalement les 4 dossiers du Guide) avec leurs valeurs attendues pour mesurer le critère « 80 % des champs » de la spec.
 
 ### Fondation (J1)
 
@@ -33,15 +33,32 @@ Projet de self-onboarding KYB : le client charge ses documents, les données son
 - **Un même document n'est jamais traité deux fois en parallèle** ; s'il est remis en file pendant son traitement, il est relancé juste après.
 - **Reprise au démarrage** : les documents restés en `uploaded`, `classifying` ou `extracting` sont relancés, en reprenant à l'étape où ils s'étaient arrêtés.
 - **Logs** limités à l'id du document, l'étape et le code d'erreur : aucun contenu de document ni message d'erreur (vérifié par un test).
-- La classification et l'extraction sont branchables (`back/src/documents/processing.ts`). **En attendant la clé OpenAI**, la classification répond « type inconnu » : tous les documents finissent en `needs_type_confirmation`. Ils ne sont jamais marqués `extracted` sans extraction réelle.
+- **Confirmation du type** : `PATCH /v1/applications/:id/documents/:docId` avec `{ "type": "rccm" }` relance l'extraction avec ce type, sans reclassification (`409 DOCUMENT_PROCESSING` pendant un traitement). Un dossier `submitted` est en lecture seule (`409 APPLICATION_LOCKED`).
+
+### Classification et extraction par IA (J2)
+
+- **Rendu** : une image PNG par page (200 DPI, plafonnée à 4000 px) et le texte embarqué du PDF, envoyé comme simple indice.
+- **Client LLM unique** (OpenAI, Chat Completions) : `store: false`, température 0, réponse en Structured Outputs stricts générés depuis les schémas Zod, 5 appels simultanés maximum, timeout 60 s et 2 nouveaux essais. Tokens, coût et durée enregistrés par document (`llm_usage`).
+- **Modes** `live` / `record` / `replay` : les tests et le smoke test rejouent les réponses de `fixtures/llm/` et n'appellent jamais OpenAI (`LLM_MODE=replay` forcé par `vitest.config.ts`).
+- **Classification** sur les 3 premières pages en basse résolution ; sous 0,7 de confiance, le client confirme le type.
+- **Extraction** RCCM, statuts et pièce d'identité (les autres types arrivent au J4) : toutes les pages en haute définition, un seul nouvel essai avec les erreurs de validation, puis échec explicite. La forme juridique n'est jamais déduite d'un sigle accolé au nom (cas SAIDOU AUTO), les dates « 01/01 » ne sont jamais corrigées.
+- **Résultats chiffrés en base** (AES-256-GCM) et renvoyés déchiffrés par `GET /v1/applications/:id/documents/:docId`.
+- **Modèles par défaut** : `gpt-4.1-mini` (classification), `gpt-4.1` (extraction). Coût mesuré sur les documents fictifs : environ 0,01 USD et 5 à 9 s par document (cible de la spec : 0,15 USD et 30 s).
+
+### Évaluation (J2)
+
+`npm run eval` classe et extrait chaque document de `fixtures/<dossier>/` (et `fixtures/private/<dossier>/`, ignoré par git) et compare aux valeurs de `expected.json` : classification, champs corrects (objectif ≥ 80 %), faux positifs, et erreurs à confiance ≥ 0,8 (non signalées au client). Format et options : [fixtures/README.md](fixtures/README.md).
+
+Premier score, sur les 3 documents fictifs de `fixtures/fictif-demo` : classification 3/3, champs corrects 41/41, faux positifs 0/8, pour 0,035 USD. Ce score n'est pas représentatif : documents générés, sans scan, tampon ni écriture manuscrite.
 
 ## Avancement
 
 | Jalon | État | Reste à faire |
 | --- | --- | --- |
 | J1 | Presque terminé | Validation des schémas et liste des activités réglementées par le DRI ; Docker Compose complet |
-| J2 | Environ 45 % | **Bloqué par la clé OpenAI** : rendu PDF en images, client LLM (modes `live` / `replay` / `record`), registre des types, classification, extraction RCCM / statuts / passeport, chiffrement des sorties d'extraction, `fixtures/` et `npm run eval` |
-| J3 à J5 | Non commencés | Voir `spec.md` |
+| J2 | Terminé côté code | Score d'évaluation sur des documents réels anonymisés |
+| J3 | Non commencé | Fusion des champs, rapprochement UBO, écrans vérifier / compléter, champs client, autosave |
+| J4 à J5 | Non commencés | Voir `spec.md` |
 
 Le front n'est pas encore branché à l'API : il affiche un parcours avec des données factices (prévu au J3).
 
@@ -55,6 +72,8 @@ Le front n'est pas encore branché à l'API : il affiche un parcours avec des do
 ```powershell
 C:\minio\minio.exe server C:\minio\data --console-address :9001
 ```
+
+- Une clé OpenAI (`OPENAI_API_KEY` dans `back/.env`) pour faire tourner l'API ou `npm run eval` en réel. Sans clé, utiliser `LLM_MODE=replay`. `npm run llm:check --workspace=back` vérifie la clé, les modèles et la vision en un appel (< 0,001 USD).
 
 ## Installation et démarrage local
 
@@ -90,12 +109,16 @@ Le front est disponible sur [http://localhost:3000](http://localhost:3000). L’
 npm test --workspace=@kyb/shared
 npm test --workspace=back              # tests unitaires, sans Mongo ni MinIO
 npm run test:smoke --workspace=back    # parcours API de bout en bout sur Mongo et MinIO locaux
+npm run eval                           # évaluation classification + extraction (LLM réel)
+npm run eval -- --mode=replay          # même chose sans clé ni coût, sur les réponses enregistrées
 npm run build --workspace=@kyb/shared
 npm run build --workspace=back
 npm run build --workspace=front
 ```
 
-Le smoke test utilise une base (`kyb_smoke`) et un bucket (`kyb-smoke`) dédiés, vidés à la fin. Il vérifie notamment que le fichier stocké dans MinIO est bien chiffré, que les doublons, fichiers invalides, trop lourds ou trop longs sont traités comme le prévoit la spec, et que les documents passent en arrière-plan de `uploaded` à `needs_type_confirmation`.
+Le smoke test utilise une base (`kyb_smoke`) et un bucket (`kyb-smoke`) dédiés, vidés à la fin. Il vérifie notamment que le fichier stocké dans MinIO est bien chiffré, que les doublons, fichiers invalides, trop lourds ou trop longs sont traités comme le prévoit la spec, que les documents fictifs passent en arrière-plan de `uploaded` à `extracted` (LLM rejoué), que les champs extraits sont chiffrés en base, et que la confirmation du type et le verrouillage d'un dossier soumis fonctionnent.
+
+Après une modification d'un prompt ou d'un schéma d'extraction, les réponses enregistrées ne correspondent plus : relancer `npm run llm:record-samples --workspace=back` (≈ 0,04 USD).
 
 Le build du back utilise TypeScript avec `strict: true`. Pour démarrer le build compilé du back :
 
@@ -123,19 +146,17 @@ Le démarrage local documenté ci-dessus ne nécessite pas Docker. La configurat
 - Les règles de fusion doivent préciser la priorité des nouvelles formes juridiques et des capitaux extraits d’un `rccm_modificatif`; cette priorité n’est pas encore définie dans la spec.
 - La règle de preuve d’activité devra rapprocher les parties d’une facture ou d’un contrat de l’entreprise du dossier, afin de confirmer son rôle plutôt que de se fier uniquement au rôle extrait.
 - Docker Compose et le Dockerfile du back doivent être adaptés aux workspaces et à l’entrée TypeScript.
-- Qui fournit la clé OpenAI et le budget de l'évaluation.
+- Documents de test réels anonymisés (ou générés de façon réaliste) avec leurs valeurs attendues : sans eux, le critère « 80 % des champs » ne peut pas être mesuré.
+- Les confiances renvoyées par le modèle sont très hautes (0,95 à 0,99) : le seuil « à vérifier » de 0,8 risque de se déclencher rarement. À vérifier sur documents réels (colonne « Err. ≥ 0,8 » de l'éval).
+- Le code d'erreur `DOCUMENT_PROCESSING` (409) a été ajouté à la liste de la spec.
 
 ## Prochaines étapes
 
-**Prérequis bloquant : obtenir une clé OpenAI** (et le budget d'évaluation associé), ainsi que des documents de test anonymisés (au moins un RCCM, des statuts et un passeport) avec les valeurs attendues.
-
-1. Rendu PDF en images et texte embarqué (`pdfjs-dist` + `@napi-rs/canvas`).
-2. Client LLM unique : timeout, nouveaux essais, `store: false`, modes `live` / `replay` / `record` pour que les tests n'appellent jamais le vrai LLM.
-3. Registre des types de document, classification, puis extraction RCCM / statuts / passeport en Structured Outputs, avec validation Zod et normalisation.
-4. `PATCH /v1/applications/:id/documents/:docId` pour que le client confirme le type d'un document en `needs_type_confirmation`.
-5. `fixtures/` et `npm run eval` : premier score d'évaluation, livrable du J2.
-6. Hors dépendance OpenAI, en parallèle : logs pino avec `redact`, Docker Compose complet, validation des schémas par le DRI.
+1. Logs pino avec `redact` et test sur la sortie des logs (critère d'acceptation de la spec).
+2. J3 côté back : modèle de champ du dossier (`Field<T>`, candidats, `edited_by_user`), fusion multi-documents avec les priorités de la spec, rapprochement des UBO, `PATCH /v1/applications/:id` pour l'autosave.
+3. J3 côté front : TanStack Query, routes `/dossier/[id]/...`, écrans vérifier / compléter branchés à l'API.
+4. En parallèle, dès réception : score d'évaluation sur documents réels et ajustement des prompts.
 
 ## Usage de l’IA pendant le développement
 
-L’IA a été utilisée pour analyser la spec et les exemples documentaires, préparer les workspaces npm, convertir le back en TypeScript, proposer les schémas Zod et leurs tests, écrire l'upload sécurisé, le stockage chiffré et la file de traitement asynchrone avec leurs tests, et rédiger cette documentation. Les tests du package partagé et les builds du package, du back et du front ont été exécutés localement. Les choix métier, les champs et les règles d’extraction restent à revoir et valider par le DRI.
+L’IA a été utilisée pour analyser la spec et les exemples documentaires, préparer les workspaces npm, convertir le back en TypeScript, proposer les schémas Zod et leurs tests, écrire l'upload sécurisé, le stockage chiffré, la file de traitement asynchrone, le client LLM, les prompts de classification et d'extraction et l'outil d'évaluation avec leurs tests, générer les documents fictifs de test, et rédiger cette documentation. Les prompts ont été ajustés d'après des appels réels (ex. la forme juridique des statuts, d'abord recopiée avec toute la phrase de l'article). L'usage de l'IA dans le produit lui-même est décrit dans « Classification et extraction par IA ». Les tests du package partagé et les builds du package, du back et du front ont été exécutés localement. Les choix métier, les champs et les règles d’extraction restent à revoir et valider par le DRI.

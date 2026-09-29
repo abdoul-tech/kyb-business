@@ -4,3 +4,7 @@ node_modules/
 .env
 .env.*
 !.env.example
+# Rapports de npm run eval (contiennent les valeurs extraites)
+eval-results/
+# Dossiers d'évaluation réels, jamais versionnés
+fixtures/private/
