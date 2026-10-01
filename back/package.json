@@ -18,7 +18,8 @@
     "test:smoke": "tsx smoke-test.ts",
     "llm:check": "tsx scripts/llm-check.ts",
     "llm:record-samples": "tsx scripts/record-samples.ts",
-    "eval": "tsx scripts/eval.ts"
+    "eval": "tsx scripts/eval.ts",
+    "fixtures:realistic": "tsx scripts/generate-realistic-samples.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1141.0",

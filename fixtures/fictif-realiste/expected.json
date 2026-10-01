@@ -1,0 +1,93 @@
+{
+  "description": "Dossier ENTIÈREMENT FICTIF « DIAMA DISTRIBUTION SARL » (Sénégal), généré par back/scripts/generate-realistic-samples.ts : photo de RCCM de travers, statuts scannés sans texte embarqué, photo de CNI recto-verso, passeport avec reflet, attestation NINEA. Plus proche de vrais documents que fictif-demo, mais reste une simulation.",
+  "documents": {
+    "rccm-diama-photo.jpg": {
+      "type": "rccm",
+      "fields": {
+        "legal_name": "DIAMA DISTRIBUTION",
+        "acronym": "DIAMADIS",
+        "trade_name": "DIAMA ÉLECTRIQUE",
+        "legal_form_explicit": "Société à Responsabilité Limitée (SARL)",
+        "rccm_number": "SN-DKR-2021-B-14327",
+        "registration_date": "2021-08-03",
+        "activity_start_date": "2021-09-01",
+        "country": "SEN",
+        "registered_address.full_address": "Lot 12, Zone Industrielle de Mbao, Dakar",
+        "activity": "Import, export et distribution de matériel électrique",
+        "object": null,
+        "capital_amount": 5000000,
+        "capital_currency": "XOF",
+        "capital_cash_amount": null,
+        "capital_in_kind_amount": null,
+        "officers[0].last_name": "KANE",
+        "officers[0].first_name": "Mamadou Lamine",
+        "officers[0].role": "Gérant",
+        "officers[0].date_of_birth": "1978-01-01",
+        "officers[0].place_of_birth": "Kaolack",
+        "officers[0].nationality": "Sénégalaise",
+        "officers[0].address": "Mbao Village, Dakar",
+        "officers[1].last_name": null
+      }
+    },
+    "statuts-diama-scan.pdf": {
+      "type": "statuts",
+      "fields": {
+        "legal_name": "DIAMA DISTRIBUTION",
+        "legal_form_explicit": "société à responsabilité limitée",
+        "capital_amount": 5000000,
+        "capital_currency": "XOF",
+        "capital_cash_amount": 4000000,
+        "capital_in_kind_amount": 1000000,
+        "shareholders[0].holder_type": "individual",
+        "shareholders[0].last_name": "KANE",
+        "shareholders[0].first_name": "Mamadou Lamine",
+        "shareholders[0].shares_count": 400,
+        "shareholders[0].ownership_pct": null,
+        "shareholders[1].holder_type": "individual",
+        "shareholders[1].last_name": "NDIAYE",
+        "shareholders[1].first_name": "Fatou Binetou",
+        "shareholders[1].shares_count": 100,
+        "shareholders[1].ownership_pct": null,
+        "shareholders[2].last_name": null,
+        "officers[0].last_name": "KANE",
+        "officers[0].first_name": "Mamadou Lamine",
+        "officers[1].last_name": null
+      }
+    },
+    "cni-kane.jpg": {
+      "type": "id_document",
+      "fields": {
+        "last_name": "KANE",
+        "first_name": "MAMADOU",
+        "middle_names": "LAMINE",
+        "date_of_birth": "1978-01-01",
+        "nationality": "SÉNÉGALAISE",
+        "address": "MBAO VILLAGE, DAKAR",
+        "expiry_date": "2029-06-14",
+        "document_type": "CNI",
+        "document_number": "1751197800123",
+        "npi": null
+      }
+    },
+    "passeport-ndiaye.jpg": {
+      "type": "id_document",
+      "fields": {
+        "last_name": "NDIAYE",
+        "first_name": "FATOU",
+        "middle_names": "BINETOU",
+        "date_of_birth": "1985-03-12",
+        "nationality": "SENEGALAISE",
+        "address": null,
+        "expiry_date": "2031-02-03",
+        "document_type": "Passeport",
+        "document_number": "A04567891",
+        "issuing_authority": "DGPAF",
+        "npi": null
+      }
+    },
+    "ninea-diama.png": {
+      "type": "tax_certificate",
+      "fields": {}
+    }
+  }
+}
