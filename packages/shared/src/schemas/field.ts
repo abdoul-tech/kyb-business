@@ -21,6 +21,9 @@ export const field = <T extends z.ZodType>(valueSchema: T) =>
     // Deux documents donnent des valeurs différentes : confiance plafonnée à 0,5, le client tranche.
     conflict: z.boolean(),
     candidates: z.array(fieldCandidate(valueSchema)),
+    // Valeur déduite par une règle, et non lue dans un document (ex. 100 % pour le titulaire d'une
+    // entreprise individuelle) : la raison est affichée au client.
+    derived_reason: z.string().optional(),
   });
 
 export type FieldCandidate<T> = {
@@ -38,6 +41,7 @@ export type Field<T> = {
   edited_by_user: boolean;
   conflict: boolean;
   candidates: FieldCandidate<T>[];
+  derived_reason?: string;
 };
 
 // Seuil sous lequel un champ est signalé « à vérifier » (spec).

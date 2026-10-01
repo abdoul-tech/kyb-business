@@ -156,6 +156,15 @@ try {
   assert.equal(reread.business.legal_name!.value, "BARRY AUTO");
   step("PATCH dossier (autosave) : saisies enregistrées, téléphone en E.164, extraction non prioritaire");
 
+  const reverted: View = await (await patchApp({ revert: ["legal_name"] })).json();
+  assert.deepEqual(
+    [reverted.business.legal_name!.value, reverted.business.legal_name!.edited_by_user],
+    ["BARRY AUTO SARL", false],
+  );
+  assert.equal(reverted.business.email!.value, "contact@barry.example");
+  assert.equal((await patchApp({ business: { email: "a@b.example" }, revert: ["email"] })).status, 400);
+  step("PATCH dossier revert : retour à la valeur des documents ; saisir et rétablir à la fois refusé (400)");
+
   const invalidPatch = await patchApp({ business: { email: "pas-un-email", annual_revenue: "beaucoup" } });
   assert.equal(invalidPatch.status, 400);
   const invalidBody = await invalidPatch.json();
@@ -211,6 +220,17 @@ try {
   assert.equal(notControl.status, 400);
   assert.equal((await notControl.json()).error.details.fields[0].field, "attests_ownership");
   step("PATCH ubo : correction et signataire de l'attestation (personne de direction uniquement)");
+
+  const uboReverted = ubosOf(await (await uboCall("PATCH", `/${barryId}`, { revert: ["address"] })).json()).find(
+    (u) => u.id === barryId,
+  )!;
+  assert.deepEqual([uboReverted.address.value, uboReverted.address.edited_by_user, uboReverted.attests_ownership], [
+    null,
+    false,
+    true,
+  ]);
+  assert.equal((await uboCall("PATCH", `/${manualId}`, { revert: ["role"] })).status, 400);
+  step("PATCH ubo revert : correction supprimée ; refusé pour une personne ajoutée à la main (400)");
 
   const linked = await uboCall("PATCH", `/${manualId}`, { id_document_id: documents[1].id });
   assert.equal(linked.status, 200);

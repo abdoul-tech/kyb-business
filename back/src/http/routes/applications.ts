@@ -55,6 +55,13 @@ applicationsRouter.patch("/:id", requireApplicationAccess, requireEditableApplic
 
     const application = req.application!;
     const values: NonNullable<ApplicationPatch["business"]> = { ...parsed.data.business };
+    const revert = parsed.data.revert ?? [];
+    const both = revert.filter((key) => key in values);
+    if (both.length > 0) {
+      throw new ApiError("VALIDATION_ERROR", "Certains champs sont invalides.", {
+        fields: both.map((key) => ({ field: `revert`, message: `« ${key} » ne peut pas être saisi et rétabli à la fois.` })),
+      });
+    }
 
     // Spec : téléphone en E.164, pays de l'entreprise par défaut.
     if (typeof values.phone === "string") {
@@ -69,8 +76,8 @@ applicationsRouter.patch("/:id", requireApplicationAccess, requireEditableApplic
       values.phone = phone;
     }
 
-    if (Object.keys(values).length > 0) {
-      await saveUserBusinessValues(application._id, values);
+    if (Object.keys(values).length > 0 || revert.length > 0) {
+      await saveUserBusinessValues(application._id, values, revert);
     }
 
     const updated = await findApplicationById(application._id);

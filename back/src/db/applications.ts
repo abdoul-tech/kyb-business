@@ -51,16 +51,19 @@ export async function findApplicationById(id: string): Promise<ApplicationDocume
 }
 
 // Enregistre les valeurs envoyées par le client, champ par champ : un autosave ne touche que ce qu'il contient.
+// `revert` supprime la saisie de ces champs : la fusion suivante redonne la valeur des documents.
 export async function saveUserBusinessValues(
   id: string,
   values: { [K in BusinessFieldKey]?: BusinessValues[K] | null },
+  revert: BusinessFieldKey[] = [],
 ): Promise<void> {
   const now = new Date();
   const set: Record<string, unknown> = { updated_at: now };
   for (const [key, value] of Object.entries(values)) {
     set[`user_business.${key}`] = { value, edited_at: now };
   }
-  await collection().updateOne({ _id: id }, { $set: set });
+  const unset = Object.fromEntries(revert.map((key) => [`user_business.${key}`, "" as const]));
+  await collection().updateOne({ _id: id }, revert.length > 0 ? { $set: set, $unset: unset } : { $set: set });
 }
 
 export type UboValuesInput = { [K in UboFieldKey]?: UboValues[K] | null } & { id_document_id?: string | null };
@@ -100,17 +103,18 @@ export async function saveUboValues(
   manual: boolean,
   values: UboValuesInput,
   attesting?: { attesting_ubo_id: string | null },
+  revert: string[] = [],
 ): Promise<void> {
   const now = new Date();
+  const set = {
+    ...valueSets(uboPath(uboId, manual), values, now),
+    ...(attesting ? { "user_ubos.attesting_ubo_id": attesting.attesting_ubo_id } : {}),
+    updated_at: now,
+  };
+  const unset = Object.fromEntries(revert.map((key) => [`${uboPath(uboId, manual)}.values.${key}`, "" as const]));
   await collection().updateOne(
     { _id: applicationId },
-    {
-      $set: {
-        ...valueSets(uboPath(uboId, manual), values, now),
-        ...(attesting ? { "user_ubos.attesting_ubo_id": attesting.attesting_ubo_id } : {}),
-        updated_at: now,
-      },
-    },
+    revert.length > 0 ? { $set: set, $unset: unset } : { $set: set },
   );
 }
 

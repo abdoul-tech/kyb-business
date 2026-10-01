@@ -1,5 +1,6 @@
 import {
   businessFieldKeys,
+  businessFieldLabelsFr,
   mapLegalForm,
   type Address,
   type BridgeEntityType,
@@ -24,6 +25,7 @@ import {
   type ResolveOptions,
   type SourcedCandidate,
 } from "./fields.js";
+import { applySoleProprietorship } from "./sole-proprietorship.js";
 import { matchUbos, type MergeDocument } from "./ubo-matching.js";
 import { applyUserUbos, EMPTY_USER_UBOS, type UserUbos } from "./user-ubos.js";
 
@@ -55,33 +57,6 @@ export const BUSINESS_PRIORITY = {
   share_capital: ["rccm", "statuts"],
 } as const satisfies Partial<Record<BusinessFieldKey, readonly DocumentTypeSlug[]>>;
 
-// Libellés des champs dans les messages au client.
-export const BUSINESS_FIELD_LABELS_FR: Record<BusinessFieldKey, string> = {
-  legal_name: "Dénomination sociale",
-  entity_type: "Forme juridique (Bridge)",
-  legal_form_local: "Forme juridique",
-  incorporation_date: "Date d'immatriculation",
-  registration_number: "Numéro RCCM",
-  tax_id: "Numéro d'identification fiscale",
-  country: "Pays d'immatriculation",
-  registered_address: "Adresse du siège",
-  operating_address: "Adresse d'exploitation",
-  activity: "Activité",
-  share_capital: "Capital social",
-  email: "Email",
-  phone: "Téléphone",
-  website: "Site web",
-  no_website_explanation: "Comment vos clients vous trouvent",
-  description: "Description de l'activité",
-  naics: "Code NAICS",
-  source_of_funds: "Origine des fonds",
-  annual_revenue: "Chiffre d'affaires annuel",
-  monthly_volume_usd: "Volume mensuel (USD)",
-  money_transmission: "Transmission de fonds pour des clients",
-  money_transmission_program: "Programme KYC/AML",
-  account_purpose: "Usage du compte",
-  dao: "DAO",
-};
 
 type Candidates = { [K in keyof typeof BUSINESS_PRIORITY]: SourcedCandidate<BusinessValues[K]>[] };
 
@@ -224,7 +199,7 @@ export function conflictAlerts(business: BusinessFields, ubos: UboView[]): Merge
       alerts.push({
         code: "field_conflict",
         severity: "warning",
-        message_fr: `Les documents donnent des valeurs différentes pour « ${BUSINESS_FIELD_LABELS_FR[key]} » : choisissez la bonne.`,
+        message_fr: `Les documents donnent des valeurs différentes pour « ${businessFieldLabelsFr[key]} » : choisissez la bonne.`,
         subject: { field: `business.${key}` },
       });
     }
@@ -254,6 +229,7 @@ export function mergeApplication(
 ): MergedApplication {
   const business = mergeBusiness(documents, user);
   const detected = matchUbos(documents, uboIdSalt);
-  const { ubos, alerts: uboAlerts } = applyUserUbos(detected.ubos, detected.alerts, userUbos, documents);
+  const withOwner = applySoleProprietorship(business, detected.ubos);
+  const { ubos, alerts: uboAlerts } = applyUserUbos(withOwner, detected.alerts, userUbos, documents);
   return { business, ubos, alerts: [...conflictAlerts(business, ubos), ...uboAlerts] };
 }

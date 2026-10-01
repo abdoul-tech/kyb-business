@@ -53,6 +53,43 @@ export type BusinessValues = { [K in BusinessFieldKey]: z.infer<(typeof business
 
 export const businessFieldKeys = Object.keys(businessFieldSchemas) as BusinessFieldKey[];
 
+// Libellés des champs, pour le formulaire client et les messages d'alerte.
+export const businessFieldLabelsFr: Record<BusinessFieldKey, string> = {
+  legal_name: "Dénomination sociale",
+  entity_type: "Forme juridique (Bridge)",
+  legal_form_local: "Forme juridique",
+  incorporation_date: "Date d'immatriculation",
+  registration_number: "Numéro RCCM",
+  tax_id: "Numéro d'identification fiscale",
+  country: "Pays d'immatriculation",
+  registered_address: "Adresse du siège",
+  operating_address: "Adresse d'exploitation",
+  activity: "Activité",
+  share_capital: "Capital social",
+  email: "Email professionnel",
+  phone: "Téléphone professionnel",
+  website: "Site web",
+  no_website_explanation: "Comment vos clients vous trouvent",
+  description: "Description de l'activité",
+  naics: "Code NAICS",
+  source_of_funds: "Origine des fonds",
+  annual_revenue: "Chiffre d'affaires annuel estimé",
+  monthly_volume_usd: "Volume mensuel estimé (USD)",
+  money_transmission: "Transmission de fonds pour des clients",
+  money_transmission_program: "Programme KYC/AML",
+  account_purpose: "Usage prévu du compte",
+  dao: "DAO",
+};
+
+export const uboFieldLabelsFr = {
+  full_name: "Nom complet",
+  role: "Fonction",
+  ownership_pct: "Part du capital (%)",
+  dob: "Date de naissance",
+  nationality: "Nationalité",
+  address: "Adresse personnelle",
+} as const;
+
 // Champs issus de la fusion des documents ; les autres ne sont renseignés que par le client.
 export const extractedBusinessFieldKeys = [
   "legal_name",
@@ -124,9 +161,12 @@ export const CreateUboRequestSchema: z.ZodType<CreateUboRequest> = z.strictObjec
 
 // PATCH /applications/{id}/ubos/{uboId} : corrections (null = vider), signataire de l'attestation,
 // pièce d'identité rattachée (document de type id_document du dossier).
+export type UboRevertKey = UboFieldKey | "id_document_id";
 export type UpdateUboRequest = { [K in UboFieldKey]?: UboValues[K] | null } & {
   attests_ownership?: boolean;
   id_document_id?: string | null;
+  // Supprime les corrections du client sur ces champs (personne détectée dans les documents uniquement).
+  revert?: UboRevertKey[];
 };
 export const UpdateUboRequestSchema: z.ZodType<UpdateUboRequest> = z.strictObject({
   full_name: uboFieldSchemas.full_name.nullable().optional(),
@@ -137,6 +177,9 @@ export const UpdateUboRequestSchema: z.ZodType<UpdateUboRequest> = z.strictObjec
   address: uboFieldSchemas.address.nullable().optional(),
   attests_ownership: z.boolean().optional(),
   id_document_id: z.string().min(1).nullable().optional(),
+  revert: z
+    .array(z.enum(["full_name", "role", "ownership_pct", "dob", "nationality", "address", "id_document_id"]))
+    .optional(),
 }) as z.ZodType<UpdateUboRequest>;
 
 export const mergeAlertCodeValues = ["field_conflict", "ubo_possible_duplicate"] as const;
@@ -165,9 +208,13 @@ export type ApplicationView = z.infer<typeof ApplicationViewSchema>;
 
 // Corps de PATCH /applications/{id} (autosave) : valeurs brutes. null = le client vide le champ.
 // Toute valeur envoyée est marquée `edited_by_user` et n'est plus jamais écrasée par une extraction.
+// `revert` supprime la saisie du client sur ces champs : la valeur des documents (ou déduite) redevient celle du
+// dossier. Un champ ne peut pas être à la fois saisi et rétabli dans le même appel.
 export type ApplicationPatch = {
   business?: { [K in BusinessFieldKey]?: BusinessValues[K] | null };
+  revert?: BusinessFieldKey[];
 };
 export const ApplicationPatchSchema: z.ZodType<ApplicationPatch> = z.strictObject({
   business: z.strictObject(mapFields((schema) => schema.nullable().optional())).optional(),
+  revert: z.array(z.enum(Object.keys(businessFieldSchemas) as [BusinessFieldKey, ...BusinessFieldKey[]])).optional(),
 }) as z.ZodType<ApplicationPatch>;

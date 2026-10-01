@@ -59,7 +59,22 @@ ubosRouter.patch("/:uboId", async (req, res, next) => {
   try {
     const body = parseBody(UpdateUboRequestSchema, req.body);
     const ubo = await findUbo(req);
-    const { attests_ownership, ...values } = body;
+    const { attests_ownership, revert = [], ...values } = body;
+
+    // Rétablir n'a de sens que pour une personne lue dans les documents, et pas pour un champ saisi en même temps.
+    const conflicting = revert.filter((key) => key in values);
+    if (revert.length > 0 && (ubo.added_by_user || conflicting.length > 0)) {
+      throw new ApiError("VALIDATION_ERROR", "Certains champs sont invalides.", {
+        fields: [
+          {
+            field: "revert",
+            message: ubo.added_by_user
+              ? "Cette personne a été ajoutée à la main : il n'y a pas de valeur de document à rétablir."
+              : "Un champ ne peut pas être saisi et rétabli à la fois.",
+          },
+        ],
+      });
+    }
 
     if (values.id_document_id) {
       const document = await findDocumentById(req.application!._id, values.id_document_id);
@@ -90,7 +105,7 @@ ubosRouter.patch("/:uboId", async (req, res, next) => {
       attesting = { attesting_ubo_id: null };
     }
 
-    await saveUboValues(req.application!._id, ubo.id, ubo.added_by_user, values, attesting);
+    await saveUboValues(req.application!._id, ubo.id, ubo.added_by_user, values, attesting, revert);
     res.json(await freshView(req));
   } catch (error) {
     next(error);
