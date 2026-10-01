@@ -4,33 +4,37 @@ Application Next.js du parcours d'onboarding KYB. Contexte métier complet dans 
 
 ## Stack
 
-- Next.js 16 (App Router), React 19, TypeScript
-- Tailwind CSS v4 (`@tailwindcss/postcss`)
-- ESLint (`eslint-config-next`)
-- `@kyb/shared` (workspace `packages/shared`) pour les schémas/types Zod partagés avec le back
-- TanStack Query est prévu par la spec pour la gestion des données serveur (polling du statut de dossier) mais **n'est pas encore installé** dans ce workspace
+- Next.js 16 (App Router, Turbopack), React 19, TypeScript — lire `AGENTS.md` : APIs différentes des versions précédentes (params et `cookies()` asynchrones, `middleware` → `proxy`, types globaux `PageProps` / `LayoutProps`). Doc embarquée dans `node_modules/next/dist/docs/`.
+- TanStack Query (données serveur, polling, mutations)
+- `@kyb/shared` : types, schémas Zod (validation identique au back), libellés, listes Bridge
+- CSS maison dans `src/app/globals.css` (Tailwind importé mais peu utilisé) : réutiliser les classes existantes (`content-section`, `field-card`, `form-grid`, `status-badge`…)
 
 ## Démarrage (depuis la racine du repo)
 
 ```powershell
-npm run dev --workspace=front
+npm run dev --workspace=back    # API sur :4000 (Mongo + MinIO locaux)
+npm run dev --workspace=front   # front sur :3000
 ```
 
-`predev`/`prebuild` reconstruisent `@kyb/shared` avant de lancer/builder le front. App sur [http://localhost:3000](http://localhost:3000).
+`API_URL` (côté serveur Next uniquement, défaut `http://localhost:4000`), voir `front/.env.example`. Pour tester sans coût : lancer le back avec `LLM_MODE=replay` et charger les PDF de `fixtures/fictif-demo/` (réponses LLM enregistrées). Config de lancement pour l'app desktop : `.claude/launch.json` (`back-replay`, `front`).
 
-## État actuel — à lire avant de coder
+## Architecture
 
-- Parcours mocké, **pas encore branché à l'API back** : `src/app/{documents,verify,complete,summary}/page.tsx`, données factices dans `src/lib/mock-data.ts`, état partagé dans `src/context/OnboardingContext.tsx`.
-- Pas de routes dynamiques `/dossier/[id]/...` comme décrit dans la spec — routes plates (`/documents`, `/verify`, `/complete`, `/summary`) définies dans `src/lib/navigation.ts`.
-- Pas d'appel réseau, pas de TanStack Query, pas de polling.
-- Types locaux dans `src/types/onboarding.ts` (`UploadedDocument`, `ExtractedField`, `AlertItem`…) : à terme, remplacer/aligner par les types dérivés de `@kyb/shared` plutôt que d'en garder deux jeux séparés.
+- **Le navigateur ne parle jamais directement à l'API.** Route Handlers Next : `src/app/api/applications/route.ts` (création : pose le jeton en cookie httpOnly `kyb_<applicationId>`, 30 jours, jamais exposé au JavaScript) et `src/app/api/applications/[id]/[[...path]]/route.ts` (relais générique vers `/v1/applications/{id}/…`, ajoute `Authorization: Bearer` depuis le cookie, corps transmis en flux, y compris l'upload multipart). `src/lib/server/backend.ts` est `server-only`.
+- `src/lib/api.ts` : client du navigateur (`ApiRequestError` avec `code` et `fields` renvoyés par l'API ; upload en XHR pour la progression réseau, un fichier par requête).
+- `src/lib/queries.ts` : `useApplication` (polling 2 s tant que `processing_documents > 0`), mutations documents et personnes ; les routes d'écriture renvoient le dossier complet, remis en cache (`setQueryData`).
+- `src/lib/autosave.ts` : autosave debounce 800 ms, modifications regroupées par cible, envoi immédiat au démontage ; erreurs de champ mappées depuis `details.fields`. Toutes les écritures utilisent `mutationKey: ["save", id]` → indicateur « Enregistrement… » de `AppShell`.
+- `src/components/fields/FieldCard.tsx` : champ avec valeur, source (« Extrait de … , p. N · %»), badges « À vérifier » (< 0,8) / « Conflit » / « À compléter », choix entre candidats en cas de conflit, validation par le schéma partagé. **N'enregistre que si la valeur a changé** (sinon un simple passage dans un champ extrait le marquerait `edited_by_user`). Se resynchronise avec le serveur hors saisie (ex. téléphone normalisé en E.164). Bouton « Revenir à la valeur des documents » sur un champ extrait modifié (`onRevert` → `revert` de `useBusinessAutosave` / `useUboAutosave`, qui retire d'abord la saisie encore en attente du lot d'autosave). Affiche « Déduit — … » quand `derived_reason` est présent.
+- `src/components/layout/DossierShell.tsx` : charge le dossier pour toutes les pages `/dossier/[id]/…`, fournit `useDossier()`, gère le dossier inaccessible (401/404), mémorise le dernier dossier en `localStorage` (identifiant seul, pour « Reprendre » sur l'accueil).
+- Pages : `/` (démarrer / reprendre), `/dossier/[id]/documents` (upload, statuts, confirmation de type, suppression), `/verifier` (champs de l'entreprise, personnes : correction, ajout, retrait, pièce rattachée, signataire de l'attestation), `/completer` (champs client), `/recap` (pièces par section Bridge, personnes, alertes ; soumission désactivée jusqu'au moteur de règles).
 
-## Repères dans le code
+## Pas encore fait
 
-- `src/lib/navigation.ts` — ordre des étapes (`documents` → `verify` → `complete` → `summary`)
-- `src/lib/validation.ts` — validations actuelles côté front (à terme partagées avec le back via Zod)
-- `src/components/layout/` — `AppShell`, `PageIntro`, `StepFooter` (structure commune des écrans du parcours)
-- `src/components/ui/` — `Button`, `StatusBadge`
+- Lien « reprendre plus tard » (le jeton n'existe que dans le cookie du navigateur qui a créé le dossier).
+- Aperçu du document source (route `/preview` absente côté API).
+- `GET /status` (pièces manquantes, `ready`) et soumission : dépendent du moteur de règles (J4). Le compteur « informations restantes » de `/completer` est indicatif.
+- Suggestion NAICS, description générée (J4).
+- Test Playwright du parcours heureux (exigé par la spec).
 
 ## Important
 

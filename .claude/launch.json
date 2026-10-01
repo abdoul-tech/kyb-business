@@ -1,0 +1,26 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "back-replay",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev", "--workspace=back"],
+      "env": { "LLM_MODE": "replay" },
+      "port": 4000,
+      "url": "http://localhost:4000"
+    },
+    {
+      "name": "back-live",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev", "--workspace=back"],
+      "port": 4000,
+      "url": "http://localhost:4000"
+    },
+    {
+      "name": "front",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev", "--workspace=front"],
+      "port": 3000
+    }
+  ]
+}

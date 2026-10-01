@@ -61,13 +61,23 @@ Premier score, sur les 3 documents fictifs de `fixtures/fictif-demo` : classific
 - **Personnes (`/v1/applications/:id/ubos`)** : `POST` ajoute une personne absente des documents ; `PATCH` corrige ses valeurs, rattache sa pièce d'identité (la date d'expiration est lue sur l'extraction) ou la désigne signataire de l'attestation de propriété (une seule personne, obligatoirement de direction) ; `DELETE` supprime une personne ajoutée ou masque une personne détectée. Les corrections du client ne sont jamais écrasées ; les indicateurs UBO et control person sont recalculés sur les valeurs corrigées. Les identifiants de personnes sont opaques (hash salé par un secret serveur), car ils apparaissent dans les URL.
 - **`PATCH /v1/applications/:id`** (autosave) : valeurs brutes validées avec les schémas partagés (email, URL, listes Bridge de l'Annexe B, dates ISO), téléphone normalisé en E.164, `null` pour vider un champ. Les erreurs listent les champs fautifs sans renvoyer les valeurs saisies.
 
+### Parcours client (J3, front)
+
+- **Accueil** : liste des documents à préparer, création du dossier, reprise du dernier dossier ouvert dans ce navigateur.
+- **Documents** : glisser-déposer multi-fichiers, progression réseau par fichier, puis suivi de l'analyse (polling toutes les 2 s) ; confirmation du type quand l'IA hésite, relance d'une analyse échouée, suppression.
+- **Vérifier** : champs de l'entreprise pré-remplis avec leur source (« Extrait de : Extrait RCCM, p. 1 · 99 % »), surlignés sous 80 % de confiance ou en conflit ; en cas de conflit, le client choisit parmi les valeurs des documents. Personnes : correction, ajout, retrait, pièce d'identité rattachée, signataire de l'attestation.
+- **Compléter** : champs demandés au client (contact, site ou explication, activité, origine des fonds, chiffre d'affaires, volume, usage du compte, transmission de fonds), validés avec les schémas partagés avec l'API.
+- **Récap** : pièces reçues par section Bridge, personnes et pièces d'identité, points d'attention. La soumission arrive avec le moteur de règles (J4).
+- **Autosave** : chaque saisie est enregistrée 800 ms après la dernière frappe, sans bouton ; un indicateur « Enregistrement… / Brouillon sauvegardé » est affiché en permanence.
+- **Sécurité** : le navigateur ne parle qu'au serveur Next, qui relaie vers l'API. Le jeton d'accès au dossier est dans un cookie `httpOnly` (30 jours), jamais lisible par le JavaScript de la page.
+
 ## Avancement
 
 | Jalon | État | Reste à faire |
 | --- | --- | --- |
 | J1 | Presque terminé | Validation des schémas et liste des activités réglementées par le DRI ; Docker Compose complet |
 | J2 | Terminé côté code | Score d'évaluation sur des documents réels anonymisés |
-| J3 | Back fait | Front : écrans vérifier / compléter, autosave, personnes |
+| J3 | Fait | Test Playwright du parcours heureux ; lien « reprendre plus tard » |
 | J4 à J5 | Non commencés | Voir `spec.md` |
 
 Le front n'est pas encore branché à l'API : il affiche un parcours avec des données factices (prévu au J3).
@@ -110,6 +120,8 @@ npm run dev --workspace=back
 ```powershell
 npm run dev --workspace=front
 ```
+
+Pour essayer le parcours sans appel à OpenAI, lancer l'API avec `LLM_MODE=replay` et charger les PDF de `fixtures/fictif-demo/` : leurs réponses d'analyse sont enregistrées.
 
 Le front est disponible sur [http://localhost:3000](http://localhost:3000). L’API écoute sur le port `4000`; son endpoint de santé est [http://localhost:4000/health](http://localhost:4000/health).
 
@@ -163,8 +175,9 @@ Le démarrage local documenté ci-dessus ne nécessite pas Docker. La configurat
 
 ## Prochaines étapes
 
-1. J3 côté front : TanStack Query, routes `/dossier/[id]/...`, écrans vérifier / compléter branchés à l'API.
-2. En parallèle, dès réception : score d'évaluation sur documents réels et ajustement des prompts.
+1. J4 : moteur de règles et `GET /status` (pièces manquantes, alertes, `ready`), types de documents restants, génération (description, NAICS, exemption), attestation de propriété.
+2. Test Playwright du parcours heureux (spec) et lien « reprendre plus tard ».
+3. En parallèle, dès réception : score d'évaluation sur documents réels et ajustement des prompts.
 
 ## Usage de l’IA pendant le développement
 
