@@ -2,7 +2,7 @@
   "replay_key": "e06c4bc06f662f2983f58169b6aaaa8d2f9a62f4798c1ee089dbb5203e2a0eae:classify",
   "purpose": "classify",
   "model": "gpt-4.1-mini-2025-04-14",
-  "recorded_at": "2026-09-28T15:17:58.793Z",
+  "recorded_at": "2026-10-01T14:11:19.217Z",
   "text": "{\"type\":\"rccm\",\"confidence\":0.95}",
   "input_tokens": 2263,
   "output_tokens": 13

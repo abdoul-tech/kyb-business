@@ -1,11 +1,11 @@
-import { createCanvas } from "@napi-rs/canvas";
+import { createCanvas, loadImage } from "@napi-rs/canvas";
 import { getDocument } from "pdfjs-dist/legacy/build/pdf.mjs";
 import type { AllowedMimeType } from "./file-check.js";
 
 export type RenderedPage = {
   page_number: number;
   image: Buffer;
-  image_mime_type: "image/png" | "image/jpeg";
+  image_mime_type: "image/jpeg";
   // Texte embarqué du PDF (vide pour un scan ou une image) : envoyé au LLM comme simple indice.
   text: string;
 };
@@ -20,7 +20,29 @@ export type RenderOptions = {
 const MAX_SIDE_PX = 4000;
 const PDF_POINTS_PER_INCH = 72;
 
-// Transforme un document (PDF, JPG, PNG) en une image par page + texte embarqué.
+// Les images envoyées au LLM sont en JPEG : un scan bruité pèse ~2,4 Mo par page en PNG contre ~0,3 Mo en JPEG,
+// pour une lisibilité équivalente et le même coût en tokens (qui dépend des dimensions). Requêtes plus légères,
+// moins de dépassements de délai. Le fichier déposé par le client, lui, est stocké tel quel.
+const JPEG_QUALITY = 85;
+// Une photo JPEG déjà légère et de taille raisonnable est envoyée telle quelle (pas de double compression).
+const KEEP_JPEG_UNDER_BYTES = 1.5 * 1024 * 1024;
+
+// Image déposée (JPG, PNG) : réduite si besoin, fond blanc sous la transparence, puis JPEG.
+async function prepareImage(content: Buffer, mimeType: "image/jpeg" | "image/png"): Promise<Buffer> {
+  const image = await loadImage(content);
+  const scale = Math.min(1, MAX_SIDE_PX / Math.max(image.width, image.height));
+  if (mimeType === "image/jpeg" && scale === 1 && content.length <= KEEP_JPEG_UNDER_BYTES) {
+    return content;
+  }
+  const canvas = createCanvas(Math.round(image.width * scale), Math.round(image.height * scale));
+  const context = canvas.getContext("2d");
+  context.fillStyle = "#ffffff";
+  context.fillRect(0, 0, canvas.width, canvas.height);
+  context.drawImage(image, 0, 0, canvas.width, canvas.height);
+  return canvas.encode("jpeg", JPEG_QUALITY);
+}
+
+// Transforme un document (PDF, JPG, PNG) en une image JPEG par page + texte embarqué.
 export async function renderDocument(
   content: Buffer,
   mimeType: AllowedMimeType,
@@ -28,7 +50,9 @@ export async function renderDocument(
 ): Promise<RenderedPage[]> {
   if (mimeType !== "application/pdf") {
     const wanted = !options.pages || options.pages.includes(1);
-    return wanted ? [{ page_number: 1, image: content, image_mime_type: mimeType, text: "" }] : [];
+    return wanted
+      ? [{ page_number: 1, image: await prepareImage(content, mimeType), image_mime_type: "image/jpeg", text: "" }]
+      : [];
   }
 
   const task = getDocument({ data: new Uint8Array(content), disableFontFace: true, verbosity: 0 });
@@ -68,8 +92,8 @@ export async function renderDocument(
 
       rendered.push({
         page_number: pageNumber,
-        image: await canvas.encode("png"),
-        image_mime_type: "image/png",
+        image: await canvas.encode("jpeg", JPEG_QUALITY),
+        image_mime_type: "image/jpeg",
         text,
       });
       page.cleanup();

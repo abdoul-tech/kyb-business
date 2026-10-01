@@ -2,7 +2,7 @@
   "replay_key": "daed8544e5c31d0bcc2a21cd97a04494d93125ab7cb06c395d39205a1c14a5a5:extract:id_document",
   "purpose": "extract",
   "model": "gpt-4.1-2025-04-14",
-  "recorded_at": "2026-09-28T15:18:20.527Z",
+  "recorded_at": "2026-10-01T14:11:37.300Z",
   "text": "{\"first_name\":{\"value\":\"FATOU\",\"confidence\":0.95,\"source_page\":1},\"last_name\":{\"value\":\"SPECIMEN\",\"confidence\":0.95,\"source_page\":1},\"middle_names\":{\"value\":\"AMINATA\",\"confidence\":0.95,\"source_page\":1},\"date_of_birth\":{\"value\":\"1990-01-01\",\"confidence\":0.95,\"source_page\":1},\"nationality\":{\"value\":\"SENEGALAISE\",\"confidence\":0.95,\"source_page\":1},\"address\":{\"value\":null,\"confidence\":0,\"source_page\":null},\"expiry_date\":{\"value\":\"2032-02-14\",\"confidence\":0.95,\"source_page\":1},\"document_type\":{\"value\":\"Passeport\",\"confidence\":0.95,\"source_page\":1},\"document_number\":{\"value\":\"A00000000\",\"confidence\":0.95,\"source_page\":1},\"issuing_authority\":{\"value\":\"DGPAF DAKAR\",\"confidence\":0.95,\"source_page\":1},\"npi\":{\"value\":null,\"confidence\":0,\"source_page\":null}}",
   "input_tokens": 2495,
   "output_tokens": 227
