@@ -6,6 +6,7 @@
     "packages/shared"
   ],
   "scripts": {
-    "eval": "npm run eval --workspace=back --"
+    "eval": "npm run eval --workspace=back --",
+    "test:e2e": "npm run test:e2e --workspace=front"
   }
 }

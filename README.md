@@ -77,7 +77,7 @@ Premier score, sur les 3 documents fictifs de `fixtures/fictif-demo` : classific
 | --- | --- | --- |
 | J1 | Presque terminé | Validation des schémas et liste des activités réglementées par le DRI ; Docker Compose complet |
 | J2 | Terminé côté code | Score d'évaluation sur des documents réels anonymisés |
-| J3 | Fait | Test Playwright du parcours heureux ; lien « reprendre plus tard » |
+| J3 | Fait | Lien « reprendre plus tard » |
 | J4 à J5 | Non commencés | Voir `spec.md` |
 
 Le front n'est pas encore branché à l'API : il affiche un parcours avec des données factices (prévu au J3).
@@ -131,6 +131,7 @@ Le front est disponible sur [http://localhost:3000](http://localhost:3000). L’
 npm test --workspace=@kyb/shared
 npm test --workspace=back              # tests unitaires, sans Mongo ni MinIO
 npm run test:smoke --workspace=back    # parcours API de bout en bout sur Mongo et MinIO locaux
+npm run test:e2e                       # parcours client dans le navigateur (Playwright, API en replay)
 npm run eval                           # évaluation classification + extraction (LLM réel)
 npm run eval -- --mode=replay          # même chose sans clé ni coût, sur les réponses enregistrées
 npm run build --workspace=@kyb/shared
@@ -176,7 +177,7 @@ Le démarrage local documenté ci-dessus ne nécessite pas Docker. La configurat
 ## Prochaines étapes
 
 1. J4 : moteur de règles et `GET /status` (pièces manquantes, alertes, `ready`), types de documents restants, génération (description, NAICS, exemption), attestation de propriété.
-2. Test Playwright du parcours heureux (spec) et lien « reprendre plus tard ».
+2. Lien « reprendre plus tard ».
 3. En parallèle, dès réception : score d'évaluation sur documents réels et ajustement des prompts.
 
 ## Usage de l’IA pendant le développement

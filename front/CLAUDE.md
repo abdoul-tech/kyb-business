@@ -28,13 +28,16 @@ npm run dev --workspace=front   # front sur :3000
 - `src/components/layout/DossierShell.tsx` : charge le dossier pour toutes les pages `/dossier/[id]/…`, fournit `useDossier()`, gère le dossier inaccessible (401/404), mémorise le dernier dossier en `localStorage` (identifiant seul, pour « Reprendre » sur l'accueil).
 - Pages : `/` (démarrer / reprendre), `/dossier/[id]/documents` (upload, statuts, confirmation de type, suppression), `/verifier` (champs de l'entreprise, personnes : correction, ajout, retrait, pièce rattachée, signataire de l'attestation), `/completer` (champs client), `/recap` (pièces par section Bridge, personnes, alertes ; soumission désactivée jusqu'au moteur de règles).
 
+## Test de bout en bout (Playwright)
+
+`npm run test:e2e` (racine ou `--workspace=front`) : `front/e2e/parcours.spec.ts` rejoue le parcours heureux (création, upload des 3 PDF de `fixtures/fictif-demo`, polling jusqu'à « Prêt », conflit choisi puis rétabli, personnes, validation et autosave de Compléter vérifiés après rechargement, récap) et le cas du dossier inaccessible. `playwright.config.ts` démarre lui-même un environnement isolé : API sur :4100 en `LLM_MODE=replay` (base `kyb_e2e`, bucket `kyb-e2e`, vidés par `e2e/global-setup.ts`) et front en build de production sur :3100 dans `.next-e2e` (`NEXT_DIST_DIR` dans `next.config.ts`, pour ne pas gêner un `next dev`). Prérequis : Mongo et MinIO démarrés, `back/.env` renseigné. Navigateur : Edge installé en local (`channel: msedge`), Chromium de Playwright en CI (`npx playwright install chromium`). ~2 min au premier lancement (build), ~1 min ensuite.
+
 ## Pas encore fait
 
 - Lien « reprendre plus tard » (le jeton n'existe que dans le cookie du navigateur qui a créé le dossier).
 - Aperçu du document source (route `/preview` absente côté API).
 - `GET /status` (pièces manquantes, `ready`) et soumission : dépendent du moteur de règles (J4). Le compteur « informations restantes » de `/completer` est indicatif.
 - Suggestion NAICS, description générée (J4).
-- Test Playwright du parcours heureux (exigé par la spec).
 
 ## Important
 
