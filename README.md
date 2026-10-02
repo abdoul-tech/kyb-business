@@ -2,6 +2,8 @@
 
 Projet de self-onboarding KYB : le client charge ses documents, les données sont extraites et vérifiées, puis un dossier prêt pour Bridge est préparé. Le périmètre fonctionnel et les règles métier de référence sont décrits dans [spec.md](spec.md).
 
+**Nouveau sur le projet ?** Commencez par le [guide de formation](docs/FORMATION.md) : architecture, API, MongoDB, MinIO, appels à OpenAI et front, expliqués simplement.
+
 ## État actuel
 
 > **Le J2 est terminé côté code.** Upload, stockage chiffré, file asynchrone, classification et extraction LLM (RCCM, statuts, pièce d'identité) fonctionnent de bout en bout, et `npm run eval` mesure la qualité. **Le premier score (100 %) porte uniquement sur 3 documents fictifs** générés proprement : il valide l'outil, pas la qualité réelle. **Il manque des documents réels anonymisés** (idéalement les 4 dossiers du Guide) avec leurs valeurs attendues pour mesurer le critère « 80 % des champs » de la spec.
